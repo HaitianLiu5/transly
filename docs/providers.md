@@ -32,6 +32,8 @@ configuration unchanged.
 
 Choose **Find other local services** to check a small fixed list of common OpenAI-compatible loopback endpoints. Discovery runs only after this click. It does not scan the local network and does not attach your stored API key to probe requests.
 
+The list covers Magpie (`3425`), CLIProxyAPI (`8317`), LM Studio (`1234`), Ollama (`11434`), LiteLLM (`4000`), vLLM (`8000`), and LocalAI or llama.cpp (`8080`).
+
 Select a detected service, add its client key when required, choose one of the returned models, and connect. Services on nonstandard ports can still be configured by entering their URL manually.
 
 ## Compatible Services
@@ -58,7 +60,9 @@ Model: a model listed by the gateway
 API format: Auto detect
 ```
 
-[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) is one compatible local gateway. It is developed and operated independently from Transly. Follow its own installation, authentication, and service-management documentation.
+[Magpie](https://github.com/yetone/magpie) is a compatible local gateway that serves the providers and subscriptions configured in its app at `http://127.0.0.1:3425/v1`. Start Magpie, choose **Find other local services**, pick **Magpie**, and choose one of its `provider/model` entries. Magpie accepts requests from the same computer without a key, so leave the API key empty. Transly sends translation text to Magpie, and Magpie forwards it to the vendor that serves the selected model.
+
+[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) is another compatible local gateway. Both are developed and operated independently from Transly. Follow each project's own installation, authentication, and service-management documentation.
 
 For local services:
 

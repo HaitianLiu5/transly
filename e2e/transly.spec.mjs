@@ -13,6 +13,7 @@ import {
   openPopup,
   test
 } from "./support/extension-fixture.mjs";
+import { startMockProvider } from "./support/mock-provider.mjs";
 
 async function setPlayerSubtitles(page, enabled) {
   const controls = page.locator("#transly-subtitle-controls");
@@ -847,6 +848,45 @@ test("the settings page automatically restores the provider model catalog", asyn
   await options.locator("#modelTrigger").click();
   await expect(options.locator(".model-option")).toHaveCount(provider.models.length);
   expect(provider.state.requests.filter((request) => request.kind === "models")).toHaveLength(requestsBeforeOpen + 1);
+});
+
+test("a reader finds a running Magpie gateway and translates through it without a key", async ({
+  extension
+}) => {
+  const magpie = await startMockProvider({ port: 3425, apiKey: "" });
+  try {
+    const options = await extension.context.newPage();
+    await options.goto(`chrome-extension://${extension.extensionId}/options.html`);
+    await expect(options.locator("html")).toHaveAttribute("data-transly-options-ready", "true");
+    await options.locator("#discoverLocal").click();
+    const result = options.locator(".local-result", { hasText: "Magpie" });
+    await expect(result).toContainText("http://127.0.0.1:3425/v1");
+    await expect(result).toContainText(`${magpie.models.length} models`);
+    expect(magpie.state.requests.filter((request) => request.kind === "models")).toEqual([
+      { kind: "models", authorization: undefined }
+    ]);
+
+    await result.click();
+    await expect(options.locator("#apiUrl")).toHaveValue("http://127.0.0.1:3425/v1");
+    await expect(options.locator("#apiKey")).toHaveValue("");
+    await options.locator("#modelTrigger").click();
+    await options.locator(`.model-option[data-value="${magpie.models[0]}"]`).click();
+    await options.locator("#connectProvider").click();
+    await expect(options.locator("#providerStatus")).toHaveText(/connected/i);
+    await options.close();
+
+    const { page: article, tabId } = await openArticle(extension, magpie);
+    const popup = await openPopup(extension, tabId);
+    await expect(popup.locator("#providerState")).toHaveText("Ready");
+    await popup.locator("#translateArticle").click();
+    await expect(article.locator("html")).toHaveAttribute("data-transly-article-status", "translated");
+    expect(magpie.translationRequests().length).toBeGreaterThan(0);
+    expect(magpie.translationRequests().every((request) => (
+      request.model === magpie.models[0] && request.authorization === undefined
+    ))).toBe(true);
+  } finally {
+    await magpie.close();
+  }
 });
 
 test("the model menu stays inside the browser-action popup and scrolls", async ({
