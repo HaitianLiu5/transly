@@ -1,6 +1,7 @@
 import { extractModelIds } from "./openai-compatible.js";
 
 export const LOCAL_PROVIDER_CANDIDATES = Object.freeze([
+  { apiUrl: "http://127.0.0.1:3425/v1", hint: "Magpie" },
   { apiUrl: "http://127.0.0.1:8317/v1", hint: "CLIProxyAPI" },
   { apiUrl: "http://127.0.0.1:1234/v1", hint: "LM Studio" },
   { apiUrl: "http://127.0.0.1:11434/v1", hint: "Ollama" },

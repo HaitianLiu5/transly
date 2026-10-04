@@ -88,7 +88,7 @@ const MODELS = [
   "openai/gpt-image-e2e"
 ];
 
-export async function startMockProvider() {
+export async function startMockProvider({ port = 0, apiKey = API_KEY } = {}) {
   const state = {
     offline: false,
     failNextTranslation: false,
@@ -193,7 +193,7 @@ export async function startMockProvider() {
       respondJson(response, 503, { error: { message: "Provider is offline" } });
       return;
     }
-    if (url.pathname.startsWith("/v1/") && request.headers.authorization !== `Bearer ${API_KEY}`) {
+    if (apiKey && url.pathname.startsWith("/v1/") && request.headers.authorization !== `Bearer ${apiKey}`) {
       respondJson(response, 401, { error: { message: "Missing or invalid API key" } });
       return;
     }
@@ -242,13 +242,13 @@ export async function startMockProvider() {
 
   await new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.listen(port, "127.0.0.1", resolve);
   });
   const address = server.address();
   const origin = `http://127.0.0.1:${address.port}`;
 
   return {
-    apiKey: API_KEY,
+    apiKey,
     apiUrl: `${origin}/v1`,
     articleUrl: `${origin}/article.html`,
     twitterUrl: `${origin}/twitter.html`,

@@ -1,0 +1,1 @@
+- Settings can find a running [Magpie](https://github.com/yetone/magpie) gateway on this computer and translate through its models without an API key.

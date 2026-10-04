@@ -65,7 +65,8 @@ Lane is optional and maintained as a separate project.
 ### Use Your Own API
 
 Transly also connects directly to hosted APIs, self-hosted services, and local
-gateways. Configure:
+gateways such as [Magpie](https://github.com/yetone/magpie), which settings can
+find with **Find other local services**. Configure:
 
 - an OpenAI-compatible base URL or complete endpoint;
 - an API key when the service requires one;
