@@ -7,6 +7,12 @@ and Transly uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-04
+
+### Added
+
+- Settings can find a running [Magpie](https://github.com/yetone/magpie) gateway on this computer and translate through its models without an API key.
+
 ## [0.3.1] - 2026-09-16
 
 ### Added
@@ -78,7 +84,8 @@ and Transly uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Refined the popup, provider setup, translated-page styling, and installation
   documentation for the first public release.
 
-[Unreleased]: https://github.com/1MoreBuild/transly/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/1MoreBuild/transly/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/1MoreBuild/transly/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/1MoreBuild/transly/compare/v0.2.1...v0.3.1
 [0.2.1]: https://github.com/1MoreBuild/transly/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/1MoreBuild/transly/compare/v0.1.1...v0.2.0
