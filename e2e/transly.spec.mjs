@@ -853,7 +853,14 @@ test("the settings page automatically restores the provider model catalog", asyn
 test("a reader finds a running Magpie gateway and translates through it without a key", async ({
   extension
 }) => {
-  const magpie = await startMockProvider({ port: 3425, apiKey: "" });
+  // Serve Magpie's fixed port from an ephemeral mock so a running Magpie is never contacted.
+  const magpie = await startMockProvider({ apiKey: "" });
+  const magpieOrigin = new URL(magpie.apiUrl).origin;
+  await extension.context.route("http://127.0.0.1:3425/**", async (route) => {
+    const url = new URL(route.request().url());
+    const response = await route.fetch({ url: `${magpieOrigin}${url.pathname}${url.search}` });
+    await route.fulfill({ response });
+  });
   try {
     const options = await extension.context.newPage();
     await options.goto(`chrome-extension://${extension.extensionId}/options.html`);
