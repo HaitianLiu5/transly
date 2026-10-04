@@ -88,7 +88,7 @@ const MODELS = [
   "openai/gpt-image-e2e"
 ];
 
-export async function startMockProvider({ port = 0, apiKey = API_KEY } = {}) {
+export async function startMockProvider({ apiKey = API_KEY } = {}) {
   const state = {
     offline: false,
     failNextTranslation: false,
@@ -242,7 +242,7 @@ export async function startMockProvider({ port = 0, apiKey = API_KEY } = {}) {
 
   await new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(port, "127.0.0.1", resolve);
+    server.listen(0, "127.0.0.1", resolve);
   });
   const address = server.address();
   const origin = `http://127.0.0.1:${address.port}`;
