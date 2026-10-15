@@ -1,7 +1,7 @@
 import { Combobox } from "@base-ui/react/combobox";
 import { Select } from "@base-ui/react/select";
 import { Switch } from "@base-ui/react/switch";
-import { Check, ChevronDown, Eye, EyeOff, LoaderCircle, Search } from "lucide-react";
+import { Cable, Check, ChevronDown, ChevronRight, Eye, EyeOff, LoaderCircle, Radar, RefreshCw, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { sendRuntimeMessage, splitModelName } from "../../src/ui/extension-api";
@@ -16,6 +16,7 @@ type LocalProvider = {
   hint?: string;
   authRequired?: boolean;
   models?: string[];
+  clientKey?: string;
 };
 type StatusTone = "neutral" | "success" | "error";
 type DiagnosticEvent = {
@@ -390,13 +391,12 @@ export function App() {
 
   function chooseLocalProvider(result: LocalProvider) {
     setApiUrl(result.apiUrl);
-    setApiKey("");
+    setApiKey(result.clientKey || "");
     setProtocol("auto");
     updateModelChoices(result.models || []);
     setModelCatalogLoaded(true);
-    showStatus(result.authRequired
-      ? t("localSelectedNeedsKey")
-      : t("localSelected"), result.authRequired ? "neutral" : "success");
+    if (result.authRequired) showStatus(t("localSelectedNeedsKey"));
+    else showStatus(result.clientKey ? t("magpieSelected") : t("localSelected"), "success");
   }
 
   function useOpenAI() {
@@ -415,86 +415,195 @@ export function App() {
       ? t("currentModelSelected")
     : manualModel
       ? t("enterExactModel")
-      : t("loadModelsHint");
+      : "";
 
   return (
     <main className="settings-shell">
-      <section className="interface-settings" aria-labelledby="interfaceHeading">
-        <div className="interface-setting-row">
-          <div className="section-heading">
-            <h2 id="interfaceHeading">{t("interfaceHeading")}</h2>
-            <p>{t("interfaceDescription")}</p>
-          </div>
-          <Select.Root items={uiLanguageItems} value={preference} onValueChange={async (value) => {
-            showStatus("");
-            await setUiLanguage(value);
-          }}>
-            <Select.Trigger id="settingsUiLanguage" className="interface-language-trigger" aria-label={t("interfaceLanguage")}>
-              <Select.Value />
-              <Select.Icon className="control-icon"><ChevronDown size={17} /></Select.Icon>
-            </Select.Trigger>
-            <Select.Portal>
-              <Select.Positioner className="combobox-positioner" align="end" sideOffset={5}>
-                <Select.Popup className="protocol-popup interface-language-popup">
-                  <Select.List className="protocol-list">
-                    {uiLanguageItems.map((item) => (
-                      <Select.Item className="protocol-option settings-interface-option" data-value={item.value} key={item.value} value={item.value}>
-                        <Select.ItemIndicator><Check size={15} /></Select.ItemIndicator>
-                        <Select.ItemText>{item.label}</Select.ItemText>
-                      </Select.Item>
-                    ))}
-                  </Select.List>
-                </Select.Popup>
-              </Select.Positioner>
-            </Select.Portal>
-          </Select.Root>
+      <header className="settings-header">
+        <img className="settings-logo" src={chrome.runtime.getURL("assets/icons/icon48.png")} alt="" />
+        <h1>{t("settingsTitle")}</h1>
+      </header>
+
+      <section className="settings-section" aria-labelledby="quickSetupHeading">
+        <div className="section-heading">
+          <h2 id="quickSetupHeading">{t("quickSetup")}</h2>
+          <p>{t("quickSetupDescription")}</p>
         </div>
-        <div className="interface-setting-row interface-toggle-row">
-          <div className="section-heading">
-            <h2>{t("selectionTranslation")}</h2>
-            <p>{t("selectionTranslationDescription")}</p>
+        <div className="settings-group provider-group">
+          <div className="quick-actions">
+            <button id="connectLane" className="setup-action" type="button" title={t("connectLaneDescription")} disabled={laneBusy} onClick={() => connectLaneProvider()}>
+              {laneBusy ? <LoaderCircle className="spin" size={15} /> : <Cable size={15} />}
+              <span>{laneBusy ? t("connectingLane") : t("connectLane")}</span>
+            </button>
+            <button id="discoverLocal" className="setup-action" type="button" title={t("findLocalServicesDescription")} disabled={discoveryBusy} onClick={discoverLocalProviders}>
+              {discoveryBusy ? <LoaderCircle className="spin" size={15} /> : <Radar size={15} />}
+              <span>{t("findLocalServices")}</span>
+            </button>
+            <button id="useOpenAI" className="setup-action" type="button" title={t("useOpenAiDescription")} onClick={useOpenAI}>
+              <img src={chrome.runtime.getURL("assets/providers/openai.svg")} alt="" />
+              <span>{t("useOpenAiApi")}</span>
+            </button>
           </div>
-          <Switch.Root
-            id="selectionTranslationEnabled"
-            className="settings-switch"
-            checked={selectionTranslationEnabled}
-            onCheckedChange={updateSelectionTranslation}
-            aria-label={t("selectionTranslation")}
-          >
-            <Switch.Thumb className="settings-switch-thumb" />
-          </Switch.Root>
+
+          {discoveryOpen && (
+            <div id="discoveryPanel" className="discovery-panel">
+              <div className="discovery-heading"><span>{t("localServices")}</span><span id="discoveryStatus">{discoveryLabel}</span></div>
+              <div id="localResults" className="local-results">
+                {!discoveryBusy && !discoveryResults.length && <p className="discovery-empty">{t("noCompatibleService")}</p>}
+                {discoveryResults.map((result) => (
+                  <button className="local-result" type="button" key={result.apiUrl} data-selected={result.apiUrl === apiUrl} onClick={() => chooseLocalProvider(result)}>
+                    <span className="local-result-copy"><strong>{result.hint || t("localApi")}</strong><span>{result.apiUrl}</span></span>
+                    <span className="local-result-detail">{result.authRequired ? t("apiKeyRequired") : t("modelCount", { count: result.models?.length || 0 })}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <form id="providerForm" className="provider-form" onSubmit={submit}>
+            <div className="field-row">
+              <label className="field-label" htmlFor="apiUrl">{t("apiUrl")}</label>
+              <div className="field-control">
+                <input id="apiUrl" name="apiUrl" type="url" spellCheck={false} autoComplete="url" placeholder="https://api.openai.com/v1" required value={apiUrl} onChange={(event) => { setApiUrl(event.target.value); resetModelChoices(); }} />
+                <small>{t("apiUrlHelp")}</small>
+              </div>
+            </div>
+
+            <div className="field-row">
+              <label className="field-label" htmlFor="apiKey">{t("apiKey")}</label>
+              <div className="field-control">
+                <span className="password-input">
+                  <input id="apiKey" name="apiKey" type={showKey ? "text" : "password"} spellCheck={false} autoComplete="off" placeholder={t("optional")} value={apiKey} onChange={(event) => { setApiKey(event.target.value); resetModelChoices(); }} />
+                  <button id="toggleApiKey" type="button" aria-label={showKey ? t("hideApiKey") : t("showApiKey")} title={showKey ? t("hideApiKey") : t("showApiKey")} onClick={() => setShowKey((value) => !value)}>
+                    {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </span>
+                <small>{t("apiKeyHelp")}</small>
+              </div>
+            </div>
+
+            <div className="field-row">
+              <span className="field-label" id="modelLabel">{t("model")}</span>
+              <div className="field-control">
+                <div className="model-input-row">
+                  <Combobox.Root
+                    items={models}
+                    value={manualModel ? null : model || null}
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      setManualModel(false);
+                      setModel(value);
+                      setCustomModel("");
+                    }}
+                    disabled={!models.length}
+                  >
+                    <Combobox.Trigger id="modelTrigger" className="model-trigger" aria-labelledby="modelLabel">
+                      <span id="modelValue" className={!selectedModel ? "is-placeholder" : ""}>
+                        {selectedModel ? splitModelName(selectedModel).name : models.length ? t("chooseModel") : t("connectToLoadModels")}
+                      </span>
+                      <Combobox.Icon className="control-icon"><ChevronDown size={16} /></Combobox.Icon>
+                    </Combobox.Trigger>
+                    <Combobox.Portal>
+                      <Combobox.Positioner className="combobox-positioner" align="start" sideOffset={6}>
+                        <Combobox.Popup id="modelPopover" className="combobox-popup">
+                          <div className="combobox-search">
+                            <Search size={15} />
+                            <Combobox.Input id="modelSearch" aria-label={t("searchModels")} placeholder={t("searchModels")} />
+                          </div>
+                          <Combobox.List id="modelList" className="combobox-list">
+                            {models.map((value) => {
+                              const parts = splitModelName(value);
+                              return (
+                                <Combobox.Item className="model-option" data-value={value} key={value} value={value}>
+                                  <span className="model-option-copy">
+                                    <span className="model-option-name">{parts.name}</span>
+                                    {parts.provider && <span className="model-option-provider">{parts.provider}</span>}
+                                  </span>
+                                  <Combobox.ItemIndicator className="model-option-check"><Check size={15} /></Combobox.ItemIndicator>
+                                </Combobox.Item>
+                              );
+                            })}
+                          </Combobox.List>
+                          <Combobox.Empty className="model-empty">{t("noMatchingModels")}</Combobox.Empty>
+                          <button id="manualModel" className="model-manual" type="button" onClick={() => setManualModel(true)}>{t("enterModelManually")}</button>
+                        </Combobox.Popup>
+                      </Combobox.Positioner>
+                    </Combobox.Portal>
+                  </Combobox.Root>
+                  <button id="loadModels" className="icon-action" type="button" aria-label={t("loadModels")} title={t("loadModels")} disabled={Boolean(busy)} onClick={() => refreshModels()}>
+                    {busy === "models" ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}
+                  </button>
+                </div>
+                {manualModel && <input id="customModel" className="custom-model" type="text" spellCheck={false} autoComplete="off" placeholder={t("providerModelName")} value={customModel} onChange={(event) => setCustomModel(event.target.value)} />}
+                {modelHint && <small id="modelHint">{modelHint}</small>}
+              </div>
+            </div>
+
+            <details className="advanced-settings">
+              <summary><ChevronRight className="advanced-chevron" size={14} />{t("advanced")}</summary>
+              <div className="field-row">
+                <span className="field-label">{t("apiFormat")}</span>
+                <div className="field-control">
+                  <Select.Root items={protocols} value={protocol} onValueChange={(value) => { if (value) { setProtocol(value as Protocol); resetModelChoices(); } }}>
+                    <Select.Trigger id="protocol" className="protocol-trigger" aria-label={t("apiFormat")}>
+                      <Select.Value />
+                      <Select.Icon className="control-icon"><ChevronDown size={16} /></Select.Icon>
+                    </Select.Trigger>
+                    <Select.Portal>
+                      <Select.Positioner className="combobox-positioner" align="start" sideOffset={5}>
+                        <Select.Popup className="protocol-popup">
+                          <Select.List className="protocol-list">
+                            {protocols.map((item) => (
+                              <Select.Item className="protocol-option" key={item.value} value={item.value}>
+                                <Select.ItemIndicator><Check size={15} /></Select.ItemIndicator>
+                                <Select.ItemText>{item.label}</Select.ItemText>
+                              </Select.Item>
+                            ))}
+                          </Select.List>
+                        </Select.Popup>
+                      </Select.Positioner>
+                    </Select.Portal>
+                  </Select.Root>
+                </div>
+              </div>
+            </details>
+
+            <div className="form-footer">
+              <p id="providerStatus" className="provider-status" data-tone={statusTone} role="status" aria-live="polite">{status}</p>
+              <div className="form-actions">
+                {showSaveWithoutTest && <button id="saveWithoutTest" className="secondary-action" type="button" disabled={Boolean(busy)} onClick={async () => { setBusy("connect"); await saveConfiguration(false); setBusy(""); }}>{t("saveWithoutTesting")}</button>}
+                <button id="testProvider" className="secondary-action" type="button" disabled={Boolean(busy)} onClick={testConnection}>{busy === "test" ? t("testing") : t("testConnection")}</button>
+                <button id="connectProvider" className="primary-action" type="submit" disabled={Boolean(busy)}>{busy === "connect" ? t("connecting") : savedConfiguration ? t("saveChanges") : t("connect")}</button>
+              </div>
+            </div>
+          </form>
         </div>
-        <div className="interface-setting-row interface-toggle-row">
-          <div className="section-heading">
-            <h2>{t("selectionIcon")}</h2>
-            <p>{t("selectionIconDescription")}</p>
-          </div>
-          <div className="selection-shortcut-controls">
-            <Select.Root
-              items={selectionShortcutItems}
-              value={selectionShortcutStyle}
-              onValueChange={updateSelectionShortcutStyle}
-              disabled={!selectionTranslationEnabled || !selectionIconEnabled}
-            >
-              <Select.Trigger
-                id="selectionShortcutStyle"
-                className="selection-shortcut-trigger"
-                aria-label={t("selectionShortcutAppearance")}
-              >
+      </section>
+
+      <section className="settings-section" aria-labelledby="interfaceHeading">
+        <div className="section-heading">
+          <h2 id="interfaceHeading">{t("interfaceHeading")}</h2>
+        </div>
+        <div className="settings-group settings-list">
+          <div className="setting-row">
+            <div className="setting-copy">
+              <span className="setting-label">{t("interfaceLanguage")}</span>
+              <span className="setting-description">{t("interfaceDescription")}</span>
+            </div>
+            <Select.Root items={uiLanguageItems} value={preference} onValueChange={async (value) => {
+              showStatus("");
+              await setUiLanguage(value);
+            }}>
+              <Select.Trigger id="settingsUiLanguage" className="interface-language-trigger" aria-label={t("interfaceLanguage")}>
                 <Select.Value />
                 <Select.Icon className="control-icon"><ChevronDown size={16} /></Select.Icon>
               </Select.Trigger>
               <Select.Portal>
                 <Select.Positioner className="combobox-positioner" align="end" sideOffset={5}>
-                  <Select.Popup className="protocol-popup selection-shortcut-popup">
+                  <Select.Popup className="protocol-popup interface-language-popup">
                     <Select.List className="protocol-list">
-                      {selectionShortcutItems.map((item) => (
-                        <Select.Item
-                          className="protocol-option selection-shortcut-option"
-                          data-value={item.value}
-                          key={item.value}
-                          value={item.value}
-                        >
+                      {uiLanguageItems.map((item) => (
+                        <Select.Item className="protocol-option settings-interface-option" data-value={item.value} key={item.value} value={item.value}>
                           <Select.ItemIndicator><Check size={15} /></Select.ItemIndicator>
                           <Select.ItemText>{item.label}</Select.ItemText>
                         </Select.Item>
@@ -504,165 +613,76 @@ export function App() {
                 </Select.Positioner>
               </Select.Portal>
             </Select.Root>
+          </div>
+          <div className="setting-row">
+            <div className="setting-copy">
+              <span className="setting-label">{t("selectionTranslation")}</span>
+              <span className="setting-description">{t("selectionTranslationDescription")}</span>
+            </div>
             <Switch.Root
-              id="selectionIconEnabled"
+              id="selectionTranslationEnabled"
               className="settings-switch"
-              checked={selectionIconEnabled}
-              onCheckedChange={updateSelectionIcon}
-              disabled={!selectionTranslationEnabled}
-              aria-label={t("selectionIcon")}
+              checked={selectionTranslationEnabled}
+              onCheckedChange={updateSelectionTranslation}
+              aria-label={t("selectionTranslation")}
             >
               <Switch.Thumb className="settings-switch-thumb" />
             </Switch.Root>
           </div>
-        </div>
-      </section>
-
-      <section className="quick-setup" aria-labelledby="quickSetupHeading">
-        <div className="section-heading">
-          <h2 id="quickSetupHeading">{t("quickSetup")}</h2>
-          <p>{t("quickSetupDescription")}</p>
-        </div>
-        <div className="quick-actions">
-          <button id="connectLane" className="setup-action setup-action-primary" type="button" disabled={laneBusy} onClick={() => connectLaneProvider()}>
-            <strong>{laneBusy ? t("connectingLane") : t("connectLane")}</strong>
-            <span>{t("connectLaneDescription")}</span>
-          </button>
-          <button id="discoverLocal" className="setup-action" type="button" disabled={discoveryBusy} onClick={discoverLocalProviders}>
-            <strong>{t("findLocalServices")}</strong>
-            <span>{t("findLocalServicesDescription")}</span>
-          </button>
-          <button id="useOpenAI" className="setup-action" type="button" onClick={useOpenAI}>
-            <strong>{t("useOpenAiApi")}</strong>
-            <span>{t("useOpenAiDescription")}</span>
-          </button>
-        </div>
-
-        {discoveryOpen && (
-          <div id="discoveryPanel" className="discovery-panel">
-            <div className="discovery-heading"><strong>{t("localServices")}</strong><span id="discoveryStatus">{discoveryLabel}</span></div>
-            <div id="localResults" className="local-results">
-              {!discoveryBusy && !discoveryResults.length && <p className="discovery-empty">{t("noCompatibleService")}</p>}
-              {discoveryResults.map((result) => (
-                <button className="local-result" type="button" key={result.apiUrl} onClick={() => chooseLocalProvider(result)}>
-                  <span className="local-result-copy"><strong>{result.hint || t("localApi")}</strong><span>{result.apiUrl}</span></span>
-                  <span className="local-result-detail">{result.authRequired ? t("apiKeyRequired") : t("modelCount", { count: result.models?.length || 0 })}</span>
-                </button>
-              ))}
+          <div className="setting-row" data-disabled={!selectionTranslationEnabled}>
+            <div className="setting-copy">
+              <span className="setting-label">{t("selectionIcon")}</span>
+              <span className="setting-description">{t("selectionIconDescription")}</span>
+            </div>
+            <div className="selection-shortcut-controls">
+              <Select.Root
+                items={selectionShortcutItems}
+                value={selectionShortcutStyle}
+                onValueChange={updateSelectionShortcutStyle}
+                disabled={!selectionTranslationEnabled || !selectionIconEnabled}
+              >
+                <Select.Trigger
+                  id="selectionShortcutStyle"
+                  className="selection-shortcut-trigger"
+                  aria-label={t("selectionShortcutAppearance")}
+                >
+                  <Select.Value />
+                  <Select.Icon className="control-icon"><ChevronDown size={15} /></Select.Icon>
+                </Select.Trigger>
+                <Select.Portal>
+                  <Select.Positioner className="combobox-positioner" align="end" sideOffset={5}>
+                    <Select.Popup className="protocol-popup selection-shortcut-popup">
+                      <Select.List className="protocol-list">
+                        {selectionShortcutItems.map((item) => (
+                          <Select.Item
+                            className="protocol-option selection-shortcut-option"
+                            data-value={item.value}
+                            key={item.value}
+                            value={item.value}
+                          >
+                            <Select.ItemIndicator><Check size={15} /></Select.ItemIndicator>
+                            <Select.ItemText>{item.label}</Select.ItemText>
+                          </Select.Item>
+                        ))}
+                      </Select.List>
+                    </Select.Popup>
+                  </Select.Positioner>
+                </Select.Portal>
+              </Select.Root>
+              <Switch.Root
+                id="selectionIconEnabled"
+                className="settings-switch"
+                checked={selectionIconEnabled}
+                onCheckedChange={updateSelectionIcon}
+                disabled={!selectionTranslationEnabled}
+                aria-label={t("selectionIcon")}
+              >
+                <Switch.Thumb className="settings-switch-thumb" />
+              </Switch.Root>
             </div>
           </div>
-        )}
+        </div>
       </section>
-
-      <form id="providerForm" className="provider-form" onSubmit={submit}>
-        <label className="field" htmlFor="apiUrl">
-          <span>{t("apiUrl")}</span>
-          <input id="apiUrl" name="apiUrl" type="url" spellCheck={false} autoComplete="url" placeholder="https://api.openai.com/v1" required value={apiUrl} onChange={(event) => { setApiUrl(event.target.value); resetModelChoices(); }} />
-          <small>{t("apiUrlHelp")}</small>
-        </label>
-
-        <label className="field" htmlFor="apiKey">
-          <span>{t("apiKey")}</span>
-          <span className="password-input">
-            <input id="apiKey" name="apiKey" type={showKey ? "text" : "password"} spellCheck={false} autoComplete="off" placeholder={t("optional")} value={apiKey} onChange={(event) => { setApiKey(event.target.value); resetModelChoices(); }} />
-            <button id="toggleApiKey" type="button" aria-label={showKey ? t("hideApiKey") : t("showApiKey")} onClick={() => setShowKey((value) => !value)}>
-              {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </span>
-          <small>{t("apiKeyHelp")}</small>
-        </label>
-
-        <div className="field">
-          <label id="modelLabel">{t("model")}</label>
-          <div className="model-input-row">
-            <Combobox.Root
-              items={models}
-              value={manualModel ? null : model || null}
-              onValueChange={(value) => {
-                if (!value) return;
-                setManualModel(false);
-                setModel(value);
-                setCustomModel("");
-              }}
-              disabled={!models.length}
-            >
-              <Combobox.Trigger id="modelTrigger" className="model-trigger" aria-labelledby="modelLabel">
-                <span id="modelValue" className={!selectedModel ? "is-placeholder" : ""}>
-                  {selectedModel ? splitModelName(selectedModel).name : models.length ? t("chooseModel") : t("connectToLoadModels")}
-                </span>
-                <Combobox.Icon className="control-icon"><ChevronDown size={17} /></Combobox.Icon>
-              </Combobox.Trigger>
-              <Combobox.Portal>
-                <Combobox.Positioner className="combobox-positioner" align="start" sideOffset={6}>
-                  <Combobox.Popup id="modelPopover" className="combobox-popup">
-                    <div className="combobox-search">
-                      <Search size={16} />
-                      <Combobox.Input id="modelSearch" aria-label={t("searchModels")} placeholder={t("searchModels")} />
-                    </div>
-                    <Combobox.List id="modelList" className="combobox-list">
-                      {models.map((value) => {
-                        const parts = splitModelName(value);
-                        return (
-                          <Combobox.Item className="model-option" data-value={value} key={value} value={value}>
-                            <span className="model-option-copy">
-                              <span className="model-option-name">{parts.name}</span>
-                              {parts.provider && <span className="model-option-provider">{parts.provider}</span>}
-                            </span>
-                            <Combobox.ItemIndicator className="model-option-check"><Check size={16} /></Combobox.ItemIndicator>
-                          </Combobox.Item>
-                        );
-                      })}
-                    </Combobox.List>
-                    <Combobox.Empty className="model-empty">{t("noMatchingModels")}</Combobox.Empty>
-                    <button id="manualModel" className="model-manual" type="button" onClick={() => setManualModel(true)}>{t("enterModelManually")}</button>
-                  </Combobox.Popup>
-                </Combobox.Positioner>
-              </Combobox.Portal>
-            </Combobox.Root>
-            <button id="loadModels" className="inline-action" type="button" disabled={Boolean(busy)} onClick={() => refreshModels()}>
-              {busy === "models" ? <><LoaderCircle className="spin" size={16} /> {t("loading")}</> : t("loadModels")}
-            </button>
-          </div>
-          {manualModel && <input id="customModel" className="custom-model" type="text" spellCheck={false} autoComplete="off" placeholder={t("providerModelName")} value={customModel} onChange={(event) => setCustomModel(event.target.value)} />}
-          <small id="modelHint">{modelHint}</small>
-        </div>
-
-        <details className="advanced-settings">
-          <summary>{t("advanced")}</summary>
-          <div className="field compact">
-            <span>{t("apiFormat")}</span>
-            <Select.Root items={protocols} value={protocol} onValueChange={(value) => { if (value) { setProtocol(value as Protocol); resetModelChoices(); } }}>
-              <Select.Trigger id="protocol" className="protocol-trigger" aria-label={t("apiFormat")}>
-                <Select.Value />
-                <Select.Icon className="control-icon"><ChevronDown size={17} /></Select.Icon>
-              </Select.Trigger>
-              <Select.Portal>
-                <Select.Positioner className="combobox-positioner" align="start" sideOffset={5}>
-                  <Select.Popup className="protocol-popup">
-                    <Select.List className="protocol-list">
-                      {protocols.map((item) => (
-                        <Select.Item className="protocol-option" key={item.value} value={item.value}>
-                          <Select.ItemIndicator><Check size={15} /></Select.ItemIndicator>
-                          <Select.ItemText>{item.label}</Select.ItemText>
-                        </Select.Item>
-                      ))}
-                    </Select.List>
-                  </Select.Popup>
-                </Select.Positioner>
-              </Select.Portal>
-            </Select.Root>
-          </div>
-        </details>
-
-        <div className="form-footer">
-          <p id="providerStatus" className="provider-status" data-tone={statusTone} role="status" aria-live="polite">{status}</p>
-          <div className="form-actions">
-            {showSaveWithoutTest && <button id="saveWithoutTest" className="secondary-action" type="button" disabled={Boolean(busy)} onClick={async () => { setBusy("connect"); await saveConfiguration(false); setBusy(""); }}>{t("saveWithoutTesting")}</button>}
-            <button id="testProvider" className="secondary-action" type="button" disabled={Boolean(busy)} onClick={testConnection}>{busy === "test" ? t("testing") : t("testConnection")}</button>
-            <button id="connectProvider" className="primary-action" type="submit" disabled={Boolean(busy)}>{busy === "connect" ? t("connecting") : savedConfiguration ? t("saveChanges") : t("connect")}</button>
-          </div>
-        </div>
-      </form>
 
       {debugMode && (
         <section className="debug-panel" aria-labelledby="debugHeading">

@@ -1,0 +1,1 @@
+- Settings, the popup, and the selection panel follow the system dark mode.

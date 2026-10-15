@@ -1,5 +1,5 @@
 import { Select } from "@base-ui/react/select";
-import { ArrowLeftRight, Check, ChevronDown, LoaderCircle, Settings2, Square, TextCursorInput } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronDown, Languages, LoaderCircle, Server, Settings2, Square, TextCursorInput } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   filterTranslationModels,
@@ -18,7 +18,7 @@ type ProviderSummary = {
   error?: string;
   host?: string;
   model?: string;
-  provider?: { name?: string; icon?: string };
+  provider?: { id?: string; name?: string; icon?: string };
 };
 
 const sourceTabId = Number(new URLSearchParams(location.search).get("tabId") || 0);
@@ -48,7 +48,7 @@ export function App() {
     : !providerConfigured
       ? t("setupRequired")
       : providerAvailable ? t("ready") : t("offline");
-  const engineState = providerConfigured && providerAvailable ? "ready" : "error";
+  const engineState = !providerConfigured ? "setup" : providerAvailable ? "ready" : "error";
   const uiLanguageItems = useMemo(() => interfaceLanguageItems(language), [language]);
 
   useEffect(() => {
@@ -79,7 +79,7 @@ export function App() {
       } else {
         setProvider({ configured: false, available: false });
         setModel("");
-        setStatusMessage(response.error || t("addProvider"));
+        setStatusMessage(response.error || "");
       }
       setProviderChecked(true);
     });
@@ -143,8 +143,17 @@ export function App() {
     }
   }
 
+  function openSettings() {
+    chrome.runtime.openOptionsPage();
+    window.close();
+  }
+
   async function runPrimaryAction() {
     setStatusMessage("");
+    if (needsSetup) {
+      openSettings();
+      return;
+    }
     if (articleStatus === "running") {
       try {
         const response = await sendToActiveTab({ type: "TRANSLY_CANCEL_ARTICLE" }, sourceTabId);
@@ -207,15 +216,25 @@ export function App() {
     return values.map((value) => ({ value, label: splitModelName(value).name }));
   }, [model, models]);
   const running = articleStatus === "running";
-  const primaryLabel = running
-    ? t("stop")
-    : hasTranslation ? t("restore") : t("translate");
-  const primaryAriaLabel = running
-    ? t("stopArticleTranslation")
-    : hasTranslation ? t("restoreOriginalArticle") : t("translateArticle");
+  const needsSetup = providerChecked && !providerConfigured && !running && !hasTranslation;
+  const primaryAction = running ? "stop" : hasTranslation ? "restore" : needsSetup ? "setup" : "translate";
+  const primaryLabel = {
+    stop: t("stop"),
+    restore: t("restore"),
+    setup: t("setUpTranslation"),
+    translate: t("translate")
+  }[primaryAction];
+  const primaryAriaLabel = {
+    stop: t("stopArticleTranslation"),
+    restore: t("restoreOriginalArticle"),
+    setup: t("setUpTranslation"),
+    translate: t("translateArticle")
+  }[primaryAction];
   const providerIcon = provider.provider?.icon
     ? chrome.runtime.getURL(provider.provider.icon)
     : "";
+  const namedProvider = Boolean(provider.provider?.id && provider.provider.id !== "custom" && provider.provider.name);
+  const providerName = namedProvider ? String(provider.provider?.name) : t("aiProvider");
 
   return (
     <main className="popup-shell">
@@ -256,10 +275,12 @@ export function App() {
       </section>
 
       <section id="engineRow" className="engine-row" data-state={providerChecked ? engineState : "checking"}>
-        <div className="provider-mark" role="img" aria-label={provider.provider?.name || t("aiProvider")}>
+        <div className="provider-mark" role="img" aria-label={providerName}>
           {providerIcon
             ? <img id="providerIcon" src={providerIcon} alt="" />
-            : <span id="providerFallback" aria-hidden="true">AI</span>}
+            : namedProvider
+              ? <span id="providerFallback" aria-hidden="true">{providerName.slice(0, 1)}</span>
+              : <Server id="providerFallback" size={16} aria-hidden="true" />}
         </div>
         <div className="engine-copy">
           <Select.Root
@@ -273,7 +294,7 @@ export function App() {
               <strong id="modelValue">{splitModelName(model || (providerChecked ? t("notConfigured") : t("checking"))).name}</strong>
               {modelsLoading
                 ? <LoaderCircle className="spin" size={14} />
-                : <Select.Icon className="select-chevron"><ChevronDown size={15} /></Select.Icon>}
+                : providerConfigured && <Select.Icon className="select-chevron"><ChevronDown size={15} /></Select.Icon>}
             </Select.Trigger>
             <Select.Portal>
               <Select.Positioner
@@ -310,56 +331,13 @@ export function App() {
           </Select.Root>
           <div className="provider-meta">
             <span className="provider-status-dot" aria-hidden="true" />
-            <span id="providerValue">{provider.provider?.name || t("aiProvider")}</span>
-            <span aria-hidden="true">·</span>
+            {providerConfigured && <>
+              <span id="providerValue">{providerName}</span>
+              <span aria-hidden="true">·</span>
+            </>}
             <span id="providerState">{providerState}</span>
           </div>
         </div>
-        <Select.Root items={uiLanguageItems} value={preference} onValueChange={changeInterfaceLanguage}>
-          <Select.Trigger
-            id="popupUiLanguage"
-            className="interface-language-select"
-            aria-label={t("interfaceLanguage")}
-            title={t("interfaceLanguage")}
-          >
-            <span aria-hidden="true">{language === "zh-CN" ? "中" : "EN"}</span>
-          </Select.Trigger>
-          <Select.Portal>
-            <Select.Positioner
-              className="select-positioner"
-              align="end"
-              alignItemWithTrigger={false}
-              collisionPadding={8}
-              sideOffset={7}
-            >
-              <Select.Popup className="select-popup interface-language-popup">
-                <Select.List className="select-list">
-                  {uiLanguageItems.map((item) => (
-                    <Select.Item
-                      className="select-item interface-language-option"
-                      data-value={item.value}
-                      key={item.value}
-                      value={item.value}
-                    >
-                      <Select.ItemIndicator className="select-check"><Check size={15} /></Select.ItemIndicator>
-                      <Select.ItemText>{item.label}</Select.ItemText>
-                    </Select.Item>
-                  ))}
-                </Select.List>
-              </Select.Popup>
-            </Select.Positioner>
-          </Select.Portal>
-        </Select.Root>
-        <button
-          id="configureProvider"
-          className="icon-button"
-          type="button"
-          aria-label={t("translationSettings")}
-          title={t("translationSettings")}
-          onClick={() => chrome.runtime.openOptionsPage()}
-        >
-          <Settings2 size={18} />
-        </button>
       </section>
 
       <section className="primary-action-section">
@@ -387,8 +365,8 @@ export function App() {
             id="translateArticle"
             className="primary-action"
             type="button"
-            data-action={running ? "stop" : hasTranslation ? "restore" : "translate"}
-            disabled={!running && !hasTranslation && !providerConfigured}
+            data-action={primaryAction}
+            disabled={!providerChecked && !running && !hasTranslation}
             aria-label={primaryAriaLabel}
             onClick={runPrimaryAction}
           >
@@ -396,24 +374,70 @@ export function App() {
             <span>{primaryLabel}</span>
           </button>
         </div>
-        {selectionTranslationEnabled && (
+        {selectionTranslationEnabled && selectionAvailable && providerConfigured && (
           <button
             id="translateSelection"
             className="selection-action"
             type="button"
-            disabled={!selectionAvailable || !providerConfigured}
-            aria-label={selectionAvailable ? t("translateSelection") : t("selectTextFirst")}
-            title={selectionAvailable ? t("translateSelection") : t("selectTextFirst")}
             onClick={translateSelection}
           >
             <TextCursorInput size={15} aria-hidden="true" />
-            <span>{selectionAvailable ? t("translateSelection") : t("selectTextFirst")}</span>
+            <span>{t("translateSelection")}</span>
           </button>
         )}
         <p id="status" className="inline-status" role="status" aria-live="polite" hidden={!statusMessage}>
           {statusMessage}
         </p>
       </section>
+
+      <footer className="popup-footer">
+        <Select.Root items={uiLanguageItems} value={preference} onValueChange={changeInterfaceLanguage}>
+          <Select.Trigger
+            id="popupUiLanguage"
+            className="footer-action"
+            aria-label={t("interfaceLanguage")}
+            title={t("interfaceLanguage")}
+          >
+            <Languages size={14} aria-hidden="true" />
+            <span>{language === "zh-CN" ? "中文" : "English"}</span>
+          </Select.Trigger>
+          <Select.Portal>
+            <Select.Positioner
+              className="select-positioner"
+              align="start"
+              alignItemWithTrigger={false}
+              collisionPadding={8}
+              sideOffset={6}
+            >
+              <Select.Popup className="select-popup interface-language-popup">
+                <Select.List className="select-list">
+                  {uiLanguageItems.map((item) => (
+                    <Select.Item
+                      className="select-item interface-language-option"
+                      data-value={item.value}
+                      key={item.value}
+                      value={item.value}
+                    >
+                      <Select.ItemIndicator className="select-check"><Check size={15} /></Select.ItemIndicator>
+                      <Select.ItemText>{item.label}</Select.ItemText>
+                    </Select.Item>
+                  ))}
+                </Select.List>
+              </Select.Popup>
+            </Select.Positioner>
+          </Select.Portal>
+        </Select.Root>
+        <button
+          id="configureProvider"
+          className="footer-action"
+          type="button"
+          title={t("translationSettings")}
+          onClick={openSettings}
+        >
+          <Settings2 size={14} aria-hidden="true" />
+          <span>{t("settings")}</span>
+        </button>
+      </footer>
     </main>
   );
 }

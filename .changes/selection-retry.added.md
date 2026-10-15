@@ -1,0 +1,1 @@
+- When selection translation fails, the panel explains the problem in plain language, keeps the service's own message, and offers **Try again**.

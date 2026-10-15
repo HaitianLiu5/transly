@@ -88,7 +88,7 @@ const MODELS = [
   "openai/gpt-image-e2e"
 ];
 
-export async function startMockProvider({ apiKey = API_KEY } = {}) {
+export async function startMockProvider({ apiKey = API_KEY, serviceName = "" } = {}) {
   const state = {
     offline: false,
     failNextTranslation: false,
@@ -189,6 +189,11 @@ export async function startMockProvider({ apiKey = API_KEY } = {}) {
       respondJson(response, 200, { ok: true });
       return;
     }
+    if (serviceName && request.method === "GET" && url.pathname === "/api/hello") {
+      state.requests.push({ kind: "hello", authorization: request.headers.authorization });
+      respondJson(response, 200, { name: serviceName, version: "e2e" });
+      return;
+    }
     if (state.offline && url.pathname.startsWith("/v1/")) {
       respondJson(response, 503, { error: { message: "Provider is offline" } });
       return;
@@ -211,6 +216,7 @@ export async function startMockProvider({ apiKey = API_KEY } = {}) {
         kind,
         model: body.model,
         authorization: request.headers.authorization,
+        session: request.headers["x-session-affinity"],
         instructions,
         prompt
       });

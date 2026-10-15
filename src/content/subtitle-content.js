@@ -22,6 +22,7 @@
   });
   const trackedVideos = new Map();
   const sourceCueSets = new Map();
+  const sourceSessionIds = new Map();
   const targetLanguageSources = new Map();
   const translatedById = new Map();
   const pendingCueIds = new Set();
@@ -41,6 +42,57 @@
   let translationQueuedUrgent = false;
   let subtitleRunId = 0;
   let subtitleStatus = "off";
+  let uiLanguage = "auto";
+  const PLAYER_TEXT_EN = {
+    title: "Translated subtitles",
+    settings: "Transly subtitle settings",
+    openSettings: "Open subtitle settings",
+    turnOn: "Turn on translated subtitles",
+    turnOff: "Turn off translated subtitles",
+    show: "Show",
+    displayMode: "Subtitle display mode",
+    original: "Original",
+    translation: "Translation",
+    both: "Both",
+    order: "Order",
+    orderGroup: "Bilingual subtitle order",
+    originalFirst: "Original first",
+    translationFirst: "Translation first",
+    textSize: "Text size",
+    position: "Position",
+    background: "Background",
+    statusDetecting: "Looking for captions…",
+    statusTranslating: "Translating captions…",
+    statusReady: "Showing translated captions",
+    statusNative: "Captions are already in your language",
+    statusNoCaptions: "This video has no captions to translate",
+    failed: "Couldn't translate the captions"
+  };
+  const PLAYER_TEXT_ZH = {
+    title: "翻译字幕",
+    settings: "Transly 字幕设置",
+    openSettings: "打开字幕设置",
+    turnOn: "开启翻译字幕",
+    turnOff: "关闭翻译字幕",
+    show: "显示",
+    displayMode: "字幕显示方式",
+    original: "原文",
+    translation: "译文",
+    both: "双语",
+    order: "顺序",
+    orderGroup: "双语字幕顺序",
+    originalFirst: "原文在上",
+    translationFirst: "译文在上",
+    textSize: "字号",
+    position: "位置",
+    background: "背景",
+    statusDetecting: "正在查找字幕…",
+    statusTranslating: "正在翻译字幕…",
+    statusReady: "正在显示翻译字幕",
+    statusNative: "字幕已经是目标语言",
+    statusNoCaptions: "此视频没有可翻译的字幕",
+    failed: "无法翻译字幕"
+  };
   let subtitleError = "";
   let subtitleLastError = "";
   let subtitleLastErrorAt = 0;
@@ -90,6 +142,7 @@
 
   observeVideos();
   getSettings().then((settings) => {
+    uiLanguage = settings.uiLanguage || uiLanguage;
     targetLanguage = settings.targetLanguage || targetLanguage;
     applyAppearanceSettings(settings);
     if (settings.subtitleEnabled) enableSubtitles(targetLanguage).catch(() => {});
@@ -100,6 +153,7 @@
     const nextSettings = Object.fromEntries(
       Object.entries(changes).map(([key, change]) => [key, change.newValue])
     );
+    if (changes.uiLanguage) uiLanguage = changes.uiLanguage.newValue || "auto";
     applyAppearanceSettings(nextSettings);
     if (changes.targetLanguage?.newValue) targetLanguage = changes.targetLanguage.newValue;
     if (!changes.subtitleEnabled) return;
@@ -287,6 +341,7 @@
       for (const [track, trackRecord] of record.tracks) {
         track.removeEventListener?.("cuechange", trackRecord.listener);
         sourceCueSets.delete(trackRecord.key);
+        sourceSessionIds.delete(trackRecord.key);
       }
       trackedVideos.delete(video);
     }
@@ -299,6 +354,7 @@
     translatedById.clear();
     pendingCueIds.clear();
     sourceCueSets.clear();
+    sourceSessionIds.clear();
     targetLanguageSources.clear();
     activeCues = [];
     activeSourceKey = "";
@@ -553,6 +609,11 @@
     }
   }
 
+  function sourceSessionId(sourceKey) {
+    if (!sourceSessionIds.has(sourceKey)) sourceSessionIds.set(sourceKey, crypto.randomUUID());
+    return sourceSessionIds.get(sourceKey);
+  }
+
   async function translateCueBatch({ batch, batchIndex, batchCount, cuesSnapshot, runId, sourceKey, mediaKey }) {
     const requestedCues = batch.slice();
     const clientRequestId = `subtitle-${crypto.randomUUID()}`;
@@ -575,6 +636,7 @@
         mode: "subtitle",
         phase: "translate",
         clientRequestId,
+        sessionId: sourceSessionId(sourceKey),
         batchIndex,
         batchCount,
         sourceBlockCount: cuesSnapshot.length,
@@ -769,34 +831,56 @@
         :host([data-enabled="true"]) .brand-icon { opacity: 1; }
         .caret { display: inline-block; width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; opacity: .68; transform: translateY(-1px) rotate(45deg); }
         .panel {
-          position: absolute; right: 0; bottom: calc(100% + 8px); width: 320px; box-sizing: border-box;
-          padding: 14px; border: 1px solid rgba(255,255,255,.14); border-radius: 10px;
-          background: rgba(20,20,22,.96); color: #fff; box-shadow: 0 16px 44px rgba(0,0,0,.42);
-          -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+          position: absolute; right: 0; bottom: calc(100% + 8px); width: 304px; box-sizing: border-box;
+          padding: 4px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px;
+          background: rgba(26,26,28,.94); color: #f4f4f2; box-shadow: 0 18px 48px rgba(0,0,0,.45);
+          -webkit-backdrop-filter: blur(20px) saturate(140%); backdrop-filter: blur(20px) saturate(140%);
           max-height: var(--transly-panel-max-height, 420px); overflow-y: auto;
+          font-size: 13px; line-height: 1.4; -webkit-font-smoothing: antialiased;
+          scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.24) transparent;
         }
         .panel[hidden] { display: none; }
-        .enable-setting { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,.12); }
-        .enable-label { font-size: 13px; font-weight: 600; }
+        .section { padding: 12px; }
+        .section + .section { border-top: 1px solid rgba(255,255,255,.08); }
+        .enable-setting { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .enable-label { font-size: 14px; font-weight: 600; }
+        .status { display: flex; align-items: center; gap: 7px; margin: 6px 0 0; color: rgba(255,255,255,.66); font-size: 12px; }
+        .status[hidden] { display: none; }
+        .status-indicator { width: 6px; height: 6px; flex: none; border-radius: 50%; background: rgba(255,255,255,.45); }
+        :host([data-state="detecting"]) .status-indicator,
+        :host([data-state="translating"]) .status-indicator { background: #f5b800; animation: pulse 1s ease-in-out infinite; }
+        :host([data-state="ready"]) .status-indicator,
+        :host([data-state="native"]) .status-indicator { background: #22c55e; }
+        :host([data-state="error"]) .status-indicator { background: #ef4444; }
+        :host([data-state="error"]) .status-text { color: #fca5a5; }
+        .error { margin: 8px 0 0; padding: 6px 8px; border-radius: 7px; background: rgba(239,68,68,.12); color: #fecaca; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+        .error:empty { display: none; }
         .subtitle-switch { position: relative; width: 36px; height: 22px; flex: 0 0 auto; padding: 0; border-radius: 11px; background: rgba(255,255,255,.2); }
         .subtitle-switch:hover { background: rgba(255,255,255,.28); }
         .subtitle-switch::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 140ms ease; }
         .subtitle-switch[aria-checked="true"] { background: #fff; }
         .subtitle-switch[aria-checked="true"]::after { background: #111; transform: translateX(14px); }
-        .panel-title { margin: 0 0 12px; font-size: 13px; font-weight: 650; letter-spacing: 0; }
-        .segment { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 2px; border-radius: 7px; background: rgba(255,255,255,.08); }
+        .setting-label { display: block; margin: 0 0 7px; color: rgba(255,255,255,.6); font-size: 12px; }
+        .segment { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 2px; border-radius: 8px; background: rgba(255,255,255,.08); }
         .segment.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .segment button { min-height: 30px; border-radius: 5px; font-size: 12px; }
-        .segment button[aria-pressed="true"] { color: #111; background: #fff; }
-        .order-setting { margin-top: 13px; }
+        .segment button { height: 28px; padding: 0 6px; border-radius: 6px; color: rgba(255,255,255,.76); font-size: 12px; white-space: nowrap; }
+        .segment button:hover { background: rgba(255,255,255,.08); }
+        .segment button[aria-pressed="true"] { color: #111; background: rgba(255,255,255,.94); font-weight: 600; }
+        .order-setting { margin-top: 12px; }
         .order-setting[hidden] { display: none; }
-        .setting-label { display: block; margin: 0 0 6px; color: rgba(255,255,255,.72); font-size: 11px; }
-        .range-row { display: grid; grid-template-columns: 92px 1fr 35px; align-items: center; gap: 9px; margin-top: 13px; }
-        .range-row label, output { color: rgba(255,255,255,.72); font-size: 11px; }
-        output { text-align: right; font-variant-numeric: tabular-nums; }
-        input[type="range"] { width: 100%; margin: 0; accent-color: #fff; }
-        .error { margin: 11px 0 0; color: #fca5a5; font-size: 11px; line-height: 1.35; }
-        .error:empty { display: none; }
+        .sliders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
+        .sliders-title { grid-column: 1 / -1; margin-bottom: -8px; }
+        .slider-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+        .slider-head label { overflow: hidden; color: rgba(255,255,255,.84); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+        output { color: #f4f4f2; font-size: 12px; font-variant-numeric: tabular-nums; }
+        input[type="range"] { --fill: 50%; display: block; width: 100%; height: 16px; margin: 0; background: transparent; cursor: pointer; -webkit-appearance: none; appearance: none; }
+        input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, #fff var(--fill), rgba(255,255,255,.18) var(--fill)); }
+        input[type="range"]::-webkit-slider-thumb { width: 14px; height: 14px; margin-top: -5px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.5); -webkit-appearance: none; appearance: none; }
+        input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,.18); }
+        input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: #fff; }
+        input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff; }
+        input[type="range"]:focus-visible { outline: none; }
+        input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(255,196,26,.6); }
         @keyframes pulse { 50% { opacity: .32; } }
       </style>
       <div class="control">
@@ -806,44 +890,48 @@
           <span class="caret" aria-hidden="true"></span>
         </button>
         <div class="panel" hidden>
-          <div class="enable-setting">
-            <span class="enable-label">Translated subtitles</span>
-            <button class="subtitle-switch" type="button" role="switch" aria-label="Turn on translated subtitles" aria-checked="false"></button>
+          <div class="section">
+            <div class="enable-setting">
+              <span class="enable-label" data-label="title"></span>
+              <button class="subtitle-switch" type="button" role="switch" aria-checked="false"></button>
+            </div>
+            <p class="status" role="status" hidden><span class="status-indicator" aria-hidden="true"></span><span class="status-text"></span></p>
+            <p class="error"></p>
           </div>
-          <p class="panel-title">Subtitle appearance</p>
-          <div class="segment" aria-label="Subtitle display mode">
-            <button type="button" data-mode="source-only" aria-pressed="false">Original</button>
-            <button type="button" data-mode="translation-only" aria-pressed="false">Translation</button>
-            <button type="button" data-mode="bilingual" aria-pressed="true">Both</button>
-          </div>
-          <div class="order-setting">
-            <span class="setting-label">Order</span>
-            <div class="segment two" aria-label="Bilingual subtitle order">
-              <button type="button" data-order="source-first" aria-pressed="true">Original first</button>
-              <button type="button" data-order="translation-first" aria-pressed="false">Translation first</button>
+          <div class="section">
+            <span class="setting-label" data-label="show"></span>
+            <div class="segment" data-label-aria="displayMode">
+              <button type="button" data-mode="source-only" aria-pressed="false" data-label="original"></button>
+              <button type="button" data-mode="translation-only" aria-pressed="false" data-label="translation"></button>
+              <button type="button" data-mode="bilingual" aria-pressed="true" data-label="both"></button>
+            </div>
+            <div class="order-setting">
+              <span class="setting-label" data-label="order"></span>
+              <div class="segment two" data-label-aria="orderGroup">
+                <button type="button" data-order="source-first" aria-pressed="true" data-label="originalFirst"></button>
+                <button type="button" data-order="translation-first" aria-pressed="false" data-label="translationFirst"></button>
+              </div>
             </div>
           </div>
-          <div class="range-row">
-            <label for="transly-source-size">Original size</label>
-            <input id="transly-source-size" data-setting="subtitleSourceFontSizePx" type="range" min="14" max="56" step="1">
-            <output data-output="subtitleSourceFontSizePx"></output>
+          <div class="section sliders">
+            <span class="setting-label sliders-title" data-label="textSize"></span>
+            <div class="slider">
+              <div class="slider-head"><label for="transly-source-size" data-label="original"></label><output data-output="subtitleSourceFontSizePx"></output></div>
+              <input id="transly-source-size" data-setting="subtitleSourceFontSizePx" type="range" min="14" max="56" step="1">
+            </div>
+            <div class="slider">
+              <div class="slider-head"><label for="transly-translation-size" data-label="translation"></label><output data-output="subtitleTranslationFontSizePx"></output></div>
+              <input id="transly-translation-size" data-setting="subtitleTranslationFontSizePx" type="range" min="14" max="56" step="1">
+            </div>
+            <div class="slider">
+              <div class="slider-head"><label for="transly-position" data-label="position"></label><output data-output="subtitlePositionPercent"></output></div>
+              <input id="transly-position" data-setting="subtitlePositionPercent" type="range" min="2" max="30" step="1">
+            </div>
+            <div class="slider">
+              <div class="slider-head"><label for="transly-background" data-label="background"></label><output data-output="subtitleBackgroundOpacity"></output></div>
+              <input id="transly-background" data-setting="subtitleBackgroundOpacity" type="range" min="0" max="0.9" step="0.05">
+            </div>
           </div>
-          <div class="range-row">
-            <label for="transly-translation-size">Translation size</label>
-            <input id="transly-translation-size" data-setting="subtitleTranslationFontSizePx" type="range" min="14" max="56" step="1">
-            <output data-output="subtitleTranslationFontSizePx"></output>
-          </div>
-          <div class="range-row">
-            <label for="transly-position">Position</label>
-            <input id="transly-position" data-setting="subtitlePositionPercent" type="range" min="2" max="30" step="1">
-            <output data-output="subtitlePositionPercent"></output>
-          </div>
-          <div class="range-row">
-            <label for="transly-background">Background</label>
-            <input id="transly-background" data-setting="subtitleBackgroundOpacity" type="range" min="0" max="0.9" step="0.05">
-            <output data-output="subtitleBackgroundOpacity"></output>
-          </div>
-          <p class="error" role="status"></p>
         </div>
       </div>
     `;
@@ -1034,18 +1122,27 @@
     playerControlsHost.dataset.enabled = String(subtitleEnabled);
     playerControlsHost.dataset.state = subtitleStatus;
     const toggle = playerControlsShadow.querySelector(".subtitle-switch");
-    const action = subtitleEnabled ? "Turn off translated subtitles" : "Turn on translated subtitles";
+    const action = playerText(subtitleEnabled ? "turnOff" : "turnOn");
     const menuTrigger = playerControlsShadow.querySelector(".menu-trigger");
     const stateLabel = subtitleStatusLabel();
     menuTrigger.setAttribute(
       "aria-label",
-      playerControlsHost.dataset.context === "preview" ? action : "Transly subtitle settings"
+      playerControlsHost.dataset.context === "preview" ? action : playerText("settings")
     );
     menuTrigger.title = stateLabel
-      ? `${stateLabel}. ${playerControlsHost.dataset.context === "preview" ? action : "Open subtitle settings"}`
-      : playerControlsHost.dataset.context === "preview" ? action : "Transly subtitle settings";
+      ? `${stateLabel}. ${playerControlsHost.dataset.context === "preview" ? action : playerText("openSettings")}`
+      : playerControlsHost.dataset.context === "preview" ? action : playerText("settings");
     toggle.setAttribute("aria-label", action);
     toggle.setAttribute("aria-checked", String(subtitleEnabled));
+    for (const node of playerControlsShadow.querySelectorAll("[data-label]")) {
+      node.textContent = playerText(node.dataset.label);
+    }
+    for (const node of playerControlsShadow.querySelectorAll("[data-label-aria]")) {
+      node.setAttribute("aria-label", playerText(node.dataset.labelAria));
+    }
+    const status = playerControlsShadow.querySelector(".status");
+    status.hidden = subtitleStatus === "off" || !subtitleStatusMessage();
+    status.querySelector(".status-text").textContent = subtitleStatusMessage();
     for (const button of playerControlsShadow.querySelectorAll("[data-mode]")) {
       button.setAttribute("aria-pressed", String(button.dataset.mode === appearance.subtitleDisplayMode));
     }
@@ -1055,6 +1152,9 @@
     playerControlsShadow.querySelector(".order-setting").hidden = appearance.subtitleDisplayMode !== "bilingual";
     for (const input of playerControlsShadow.querySelectorAll("input[data-setting]")) {
       input.value = String(appearance[input.dataset.setting]);
+      const min = Number(input.min);
+      const fill = ((Number(input.value) - min) / (Number(input.max) - min)) * 100;
+      input.style.setProperty("--fill", `${Math.round(fill)}%`);
     }
     const sourceFontOutput = playerControlsShadow.querySelector('[data-output="subtitleSourceFontSizePx"]');
     const translationFontOutput = playerControlsShadow.querySelector('[data-output="subtitleTranslationFontSizePx"]');
@@ -1265,13 +1365,27 @@
   }
 
   function subtitleStatusLabel() {
-    if (subtitleStatus === "native") return "Captions already match the target language";
-    if (subtitleStatus === "error") return subtitleError || "Subtitle translation failed";
-    if (subtitleStatus === "no-captions") return "No captions were detected";
-    if (subtitleStatus === "detecting") return "Detecting captions";
-    if (subtitleStatus === "translating") return "Translating captions";
-    if (subtitleStatus === "ready") return "Translated captions ready";
-    return "";
+    if (subtitleStatus === "error") return subtitleError || playerText("failed");
+    return subtitleStatusMessage();
+  }
+
+  function subtitleStatusMessage() {
+    const key = {
+      native: "statusNative",
+      error: "failed",
+      "no-captions": "statusNoCaptions",
+      detecting: "statusDetecting",
+      translating: "statusTranslating",
+      ready: "statusReady"
+    }[subtitleStatus];
+    return key ? playerText(key) : "";
+  }
+
+  function playerText(key) {
+    const language = uiLanguage === "en" || uiLanguage === "zh-CN"
+      ? uiLanguage
+      : (navigator.language || "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+    return (language === "zh-CN" ? PLAYER_TEXT_ZH : PLAYER_TEXT_EN)[key] || PLAYER_TEXT_EN[key] || "";
   }
 
   function recordSubtitleDiagnostic() {

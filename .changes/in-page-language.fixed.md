@@ -1,0 +1,2 @@
+- The subtitle panel and the selection panel now use the interface language chosen in Transly instead of always English or the browser language, and the subtitle panel says what it is doing.
+- Switches in settings are vertically centered.

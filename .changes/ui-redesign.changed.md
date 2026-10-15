@@ -1,0 +1,1 @@
+- Settings, the popup, the selection panel, and the subtitle panel share a calmer, consistent design. Settings lead with the translation service, and before a service is connected the popup offers **Set up translation** instead of a disabled button and an error.

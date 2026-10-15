@@ -1,3 +1,5 @@
+import { isMagpieConnection } from "./magpie.js";
+
 export const PROVIDER_STORAGE_KEY = "translationProvider";
 
 export const DEFAULT_PROVIDER_CONFIG = Object.freeze({
@@ -65,6 +67,7 @@ export function providerSummary(configValue) {
 }
 
 function inferProvider(config) {
+  if (isMagpieConnection(config)) return { id: "magpie", name: "Magpie", icon: "" };
   const modelPrefix = config.model.split("/", 1)[0].toLowerCase();
   if (modelPrefix === "openai-codex" || modelPrefix === "openai") {
     return { id: "openai", name: "OpenAI", icon: "assets/providers/openai.svg" };

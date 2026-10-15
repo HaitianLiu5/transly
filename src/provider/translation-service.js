@@ -33,6 +33,7 @@ export function createTranslationService(options = {}) {
     const parser = createStreamingStringArrayParser(payload.items.map((item) => item.id));
     const response = await queue.run(() => modelRequest(context.config, preparedRequest, {
       signal: context.signal,
+      sessionId: context.sessionId,
       onTextDelta(delta) {
         const items = parser.push(delta)
           .filter((item) => typeof item.translation === "string")
@@ -92,7 +93,10 @@ export function createTranslationService(options = {}) {
       ? await buildCacheIdentity("article-audit", context.config, payload.auditKey, request)
       : null;
     return resolveCached(cacheIdentity, async () => {
-      const response = await queue.run(() => modelRequest(context.config, request, { signal: context.signal }));
+      const response = await queue.run(() => modelRequest(context.config, request, {
+        signal: context.signal,
+        sessionId: context.sessionId
+      }));
       return normalizeAuditResult(parseJsonOutput(response.outputText), payload);
     }, { shareInFlight: !context.signal });
   }
