@@ -1,1 +1,0 @@
-- Choosing Magpie in **Find local services** now identifies Transly to Magpie, so Magpie's usage lists these translations as `transly` instead of as the browser, and the popup names Magpie as the provider.

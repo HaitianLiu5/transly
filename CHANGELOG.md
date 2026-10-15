@@ -7,11 +7,23 @@ and Transly uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.4.0] - 2026-10-04
+## [0.4.0] - 2026-10-14
 
 ### Added
 
-- Settings can find a running [Magpie](https://github.com/yetone/magpie) gateway on this computer and translate through its models without an API key.
+- Settings can find a running [Magpie](https://github.com/yetone/magpie) gateway on this computer and translate through its models without an API key. Magpie's usage lists these translations as `transly`, and the popup names Magpie as the provider.
+- Through Magpie, each article translation and each video's captions stay in one Magpie session, so a routing group keeps the batches on the account that already cached Transly's instructions.
+- When selection translation fails, the panel explains the problem in plain language, keeps the service's own message, and offers **Try again**.
+- Settings, the popup, and the selection panel follow the system dark mode.
+
+### Changed
+
+- Settings, the popup, the selection panel, and the subtitle panel share a calmer, consistent design. Settings lead with the translation service, and before a service is connected the popup offers **Set up translation** instead of a disabled button and an error.
+
+### Fixed
+
+- The subtitle panel and the selection panel now use the interface language chosen in Transly instead of always English or the browser language, and the subtitle panel says what it is doing.
+- Switches in settings are vertically centered.
 
 ## [0.3.1] - 2026-09-16
 

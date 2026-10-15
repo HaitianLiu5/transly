@@ -1,1 +1,0 @@
-- Through Magpie, each article translation and each video's captions now stay in one Magpie session, so a routing group keeps the batches on the account that already cached Transly's instructions.
