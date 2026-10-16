@@ -1,3 +1,5 @@
+import { magpieSessionHeaders } from "./magpie.js";
+
 const REQUEST_TIMEOUT_MS = 180_000;
 
 export async function requestModel(config, request, options = {}) {
@@ -6,7 +8,7 @@ export async function requestModel(config, request, options = {}) {
   try {
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: buildHeaders(config.apiKey),
+      headers: { ...buildHeaders(config.apiKey), ...magpieSessionHeaders(config, options.sessionId) },
       body: JSON.stringify(buildRequestBody(protocol, config.model, request)),
       signal: controller.signal
     });

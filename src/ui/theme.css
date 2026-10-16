@@ -1,0 +1,98 @@
+/* Shared tokens for the surfaces Transly owns: the popup and the settings page.
+   The selection panel and the subtitle panel mirror these values in their shadow roots. */
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "PingFang SC", "Noto Sans SC", sans-serif;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+
+  --ink: #1d1d1b;
+  --muted: #6b6963;
+  --faint: #a19f98;
+  --line: #e8e6e1;
+  --control-line: #d9d7d0;
+  --canvas: #f6f5f2;
+  --surface: #fff;
+  --raised: #f3f2ee;
+  --hover: #ebe9e4;
+  --selected: #fff6d6;
+  --accent: #ffc41a;
+  --accent-hover: #f5b900;
+  --accent-border: #d9a000;
+  --accent-ink: #1d1d1b;
+  --success: #1f7a4a;
+  --danger: #b3362c;
+  --danger-soft: #fdf1ef;
+  --focus: rgb(255 196 26 / 45%);
+  --shadow-popover: 0 12px 32px rgb(20 20 18 / 14%), 0 2px 6px rgb(20 20 18 / 8%);
+  --switch-off: #cfcdc6;
+  --switch-on: #1d1d1b;
+  --switch-thumb: #fff;
+  --switch-thumb-on: #fff;
+  --mono-icon-filter: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #f1f0ec;
+    --muted: #a8a69f;
+    --faint: #75736c;
+    --line: #32312d;
+    --control-line: #46453f;
+    --canvas: #141413;
+    --surface: #1e1e1c;
+    --raised: #282826;
+    --hover: #31312e;
+    --selected: #3b3319;
+    --success: #4cc38a;
+    --danger: #ff8b7b;
+    --danger-soft: #3b2220;
+    --shadow-popover: 0 12px 32px rgb(0 0 0 / 48%), 0 2px 6px rgb(0 0 0 / 32%);
+    --switch-off: #4a4944;
+    --switch-on: #f1f0ec;
+    --switch-thumb: #f1f0ec;
+    --switch-thumb-on: #1e1e1c;
+    --mono-icon-filter: invert(1);
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); }
+button, input { font: inherit; color: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+.spin { animation: transly-spin 850ms linear infinite; }
+@keyframes transly-spin { to { transform: rotate(360deg); } }
+
+/* Base UI renders a switch as a block <span>; centre the thumb in the track. */
+.settings-switch {
+  position: relative;
+  display: inline-flex;
+  width: 36px;
+  height: 22px;
+  flex: none;
+  align-items: center;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--switch-off);
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+.settings-switch[data-checked] { background: var(--switch-on); }
+.settings-switch[data-disabled] { cursor: not-allowed; opacity: .42; }
+.settings-switch:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.settings-switch-thumb {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--switch-thumb);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 22%);
+  transition: transform 140ms ease, background-color 140ms ease;
+}
+.settings-switch[data-checked] .settings-switch-thumb { background: var(--switch-thumb-on); transform: translateX(14px); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}

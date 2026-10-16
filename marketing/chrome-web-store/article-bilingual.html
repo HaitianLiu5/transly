@@ -209,10 +209,11 @@
         top: 93px;
         right: 50px;
         width: 352px;
-        padding: 14px 16px 16px;
-        border-radius: 8px;
+        overflow: hidden;
+        padding: 14px 16px 0;
+        border-radius: 10px;
         background: var(--paper);
-        color: #20201e;
+        color: #1d1d1b;
         font-size: 13px;
         line-height: 1.4;
         box-shadow:
@@ -237,56 +238,53 @@
 
       .popup-language-row {
         display: flex;
-        min-height: 42px;
+        min-height: 32px;
         align-items: center;
         justify-content: space-between;
         gap: 16px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid #e7e5e0;
       }
 
       .popup-label {
-        color: #6f6d67;
-        font-size: 12px;
-        font-weight: 650;
+        color: #6b6963;
+        font-size: 13px;
+        font-weight: 500;
       }
 
       .popup-select {
         display: flex;
-        min-height: 34px;
+        height: 32px;
         align-items: center;
         gap: 6px;
-        padding: 0 8px 0 10px;
-        border: 1px solid #e7e5e0 !important;
-        border-radius: 7px;
-        background: #f6f5f2;
+        padding: 0 7px 0 10px;
+        border-radius: 8px;
+        background: #f3f2ee;
         font-size: 13px !important;
-        font-weight: 650 !important;
+        font-weight: 600 !important;
       }
 
       .chevron {
         width: 16px;
         height: 16px;
         flex: 0 0 auto;
-        color: #6f6d67;
+        color: #6b6963;
       }
 
       .popup-engine-row {
         display: flex;
-        min-height: 62px;
         align-items: center;
-        gap: 10px;
-        border-bottom: 1px solid #e7e5e0;
+        gap: 11px;
+        padding: 16px 0;
       }
 
       .provider-mark {
         display: grid;
-        width: 34px;
-        height: 34px;
+        width: 36px;
+        height: 36px;
         flex: 0 0 auto;
         place-items: center;
-        border-radius: 8px;
-        background: #f6f5f2;
+        border: 1px solid #e8e6e1;
+        border-radius: 9px;
+        background: #fff;
       }
 
       .provider-mark img {
@@ -299,7 +297,7 @@
         min-width: 0;
         flex: 1;
         flex-direction: column;
-        gap: 2px;
+        gap: 3px;
       }
 
       .engine-model {
@@ -307,7 +305,7 @@
         align-items: center;
         gap: 6px;
         font-size: 14px;
-        font-weight: 680;
+        font-weight: 600;
       }
 
       .engine-model .chevron {
@@ -318,45 +316,20 @@
       .provider-meta {
         display: flex;
         align-items: center;
-        gap: 4px;
-        color: #6f6d67;
-        font-size: 10px;
-        font-weight: 600;
+        gap: 5px;
+        color: #6b6963;
+        font-size: 12px;
       }
 
       .provider-dot {
         width: 6px;
         height: 6px;
         border-radius: 50%;
-        background: #16834d;
-      }
-
-      .popup-icon-button {
-        display: grid;
-        width: 30px;
-        height: 30px;
-        flex: 0 0 auto;
-        place-items: center;
-        padding: 0;
-        border-radius: 7px;
-        background: transparent;
-        color: #6f6d67 !important;
-        font-size: 10px !important;
-        font-weight: 750 !important;
-      }
-
-      .popup-icon-button svg {
-        width: 18px;
-        height: 18px;
-      }
-
-      .popup-settings-button {
-        width: 34px;
-        height: 34px;
+        background: #1f7a4a;
       }
 
       .popup-action-section {
-        padding-top: 14px;
+        padding-bottom: 14px;
       }
 
       .popup-action-row {
@@ -367,15 +340,15 @@
 
       .popup-display-mode {
         display: flex;
-        height: 44px;
+        height: 40px;
         align-items: center;
         gap: 6px;
-        padding: 0 10px;
-        border: 1px solid #e7e5e0 !important;
-        border-radius: 8px;
-        background: #f6f5f2;
-        font-size: 11px !important;
-        font-weight: 650 !important;
+        padding: 0 11px;
+        border: 1px solid #d9d7d0 !important;
+        border-radius: 9px;
+        background: #fff;
+        font-size: 12px !important;
+        font-weight: 600 !important;
         white-space: nowrap;
       }
 
@@ -387,7 +360,7 @@
         align-items: center;
         justify-content: center;
         font-size: 13px;
-        font-weight: 750;
+        font-weight: 600;
         line-height: 1;
       }
 
@@ -395,47 +368,55 @@
         width: 13px;
         height: 13px;
         flex: 0 0 auto;
-        color: #6f6d67;
+        color: #6b6963;
       }
 
       .popup-primary-action {
         display: flex;
         width: 100%;
-        min-height: 44px;
+        height: 40px;
         align-items: center;
         justify-content: center;
         padding: 0 16px;
-        border: 1px solid #e7e5e0 !important;
-        border-radius: 8px;
-        background: #f6f5f2;
-        font-weight: 720 !important;
+        border: 1px solid #d9d7d0 !important;
+        border-radius: 9px;
+        background: #fff;
+        font-size: 14px !important;
+        font-weight: 600 !important;
       }
 
-      .popup-selection-action {
+      .popup-footer {
         display: flex;
-        width: 100%;
-        min-height: 34px;
         align-items: center;
-        justify-content: center;
-        gap: 7px;
-        margin-top: 8px;
-        padding: 0 12px;
-        border-radius: 7px;
-        background: transparent;
-        color: #aaa8a2 !important;
-        font-size: 11px !important;
-        font-weight: 650 !important;
+        justify-content: space-between;
+        margin: 0 -16px;
+        padding: 6px 10px;
+        border-top: 1px solid #e8e6e1;
+        background: #f6f5f2;
       }
 
-      .popup-selection-action svg {
-        width: 15px;
-        height: 15px;
+      .popup-footer-action {
+        display: inline-flex;
+        height: 28px;
+        align-items: center;
+        gap: 6px;
+        padding: 0 7px;
+        border-radius: 6px;
+        background: transparent;
+        color: #6b6963 !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+      }
+
+      .popup-footer-action svg {
+        width: 14px;
+        height: 14px;
       }
 
       .caption {
         position: absolute;
         right: 50px;
-        top: 368px;
+        top: 341px;
         width: 352px;
         padding: 16px 18px;
         border-radius: 8px;
@@ -544,14 +525,6 @@
               <span>Ready</span>
             </div>
           </div>
-          <button class="popup-icon-button" type="button" aria-label="Interface language">EN</button>
-          <button class="popup-icon-button popup-settings-button" type="button" aria-label="Translation settings">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M14 17H5M19 7h-9"></path>
-              <circle cx="17" cy="17" r="3"></circle>
-              <circle cx="7" cy="7" r="3"></circle>
-            </svg>
-          </button>
         </div>
 
         <div class="popup-action-section">
@@ -563,11 +536,20 @@
             </button>
             <button class="popup-primary-action" type="button" aria-label="Restore original article">Restore</button>
           </div>
-          <button class="popup-selection-action" type="button" disabled>
+        </div>
+
+        <div class="popup-footer">
+          <button class="popup-footer-action" type="button" aria-label="Interface language">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"></path></svg>
+            <span>English</span>
+          </button>
+          <button class="popup-footer-action" type="button" aria-label="Translation settings">
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 20h-1a2 2 0 0 1-2-2 2 2 0 0 1-2 2H6M13 8h7a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-7M5 16H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h1M6 4h1a2 2 0 0 1 2 2 2 2 0 0 1 2-2h1M9 6v12"></path>
+              <path d="M14 17H5M19 7h-9"></path>
+              <circle cx="17" cy="17" r="3"></circle>
+              <circle cx="7" cy="7" r="3"></circle>
             </svg>
-            <span>Select text on the page first</span>
+            <span>Settings</span>
           </button>
         </div>
       </aside>

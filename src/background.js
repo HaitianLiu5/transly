@@ -202,6 +202,7 @@ export function registerBackground(chromeApi, dependencies = {}) {
       withProviderConfig(chromeApi, (config) => service.translate(message.payload, {
         config,
         signal: operation.signal,
+        sessionId: translationSessionId(message.payload),
         onProgress(data) {
           relayTranslationProgress(chromeApi, sender, data);
         }
@@ -216,7 +217,8 @@ export function registerBackground(chromeApi, dependencies = {}) {
       const operation = trackTranslationOperation(activeTranslationRuns, sender, message.payload);
       withProviderConfig(chromeApi, (config) => service.audit(message.payload, {
         config,
-        signal: operation.signal
+        signal: operation.signal,
+        sessionId: translationSessionId(message.payload)
       }))
         .then((data) => sendResponse({ ok: true, data }))
         .catch((error) => sendResponse({ ok: false, error: formatError(error) }))
@@ -443,6 +445,13 @@ function trackTranslationOperation(activeRuns, sender, payload = {}) {
       if (run.pending <= 0 && activeRuns.get(key) === run) activeRuns.delete(key);
     }
   };
+}
+
+// An article run's clientRequestId spans the whole run; subtitle batches each
+// have their own, so the subtitle runtime sends one sessionId per caption source.
+function translationSessionId(payload = {}) {
+  const value = String(payload.sessionId || payload.clientRequestId || "").trim();
+  return /^[A-Za-z0-9-]{1,80}$/.test(value) ? value : "";
 }
 
 function idleTranslationOperation() {

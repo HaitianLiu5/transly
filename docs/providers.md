@@ -4,7 +4,7 @@ Transly works with model services that expose an OpenAI-compatible Responses API
 
 ## Required Settings
 
-Open Transly's popup and choose **Configure**.
+Open Transly's popup and choose **Settings** (or **Set up translation** before a service is connected).
 
 | Setting | Meaning |
 | --- | --- |
@@ -13,7 +13,7 @@ Open Transly's popup and choose **Configure**.
 | Model | Loaded automatically from the service's `/models` endpoint; manual entry remains available as a fallback |
 | API format | Available under **Advanced**; use **Auto detect** unless the service requires a specific protocol |
 
-Choose **Connect** before translating an article. Transly checks `/v1/models`, fills the model dropdown, and saves the selected configuration. If a compatible service does not expose a model list, choose the manual model option and save without verification.
+Choose **Connect** before translating an article. Transly checks `/v1/models`, fills the model dropdown, and saves the selected configuration. The refresh button beside the model reloads the list later. If a compatible service does not expose a model list, choose the manual model option and save without verification.
 
 ## Connect Lane Automatically
 
@@ -30,7 +30,7 @@ configuration unchanged.
 
 ## Find A Local Service
 
-Choose **Find other local services** to check a small fixed list of common OpenAI-compatible loopback endpoints. Discovery runs only after this click. It does not scan the local network and does not attach your stored API key to probe requests.
+Choose **Find local services** to check a small fixed list of common OpenAI-compatible loopback endpoints. Discovery runs only after this click. It does not scan the local network and does not attach your stored API key to probe requests.
 
 The list covers Magpie (`3425`), CLIProxyAPI (`8317`), LM Studio (`1234`), Ollama (`11434`), LiteLLM (`4000`), vLLM (`8000`), and LocalAI or llama.cpp (`8080`).
 
@@ -60,7 +60,11 @@ Model: a model listed by the gateway
 API format: Auto detect
 ```
 
-[Magpie](https://github.com/yetone/magpie) is a compatible local gateway that serves the providers and subscriptions configured in its app at `http://127.0.0.1:3425/v1`. Start Magpie, choose **Find other local services**, pick **Magpie**, and choose one of its `provider/model` entries. Magpie accepts requests from the same computer without a key, so leave the API key empty. Transly sends translation text to Magpie, and Magpie forwards it to the vendor that serves the selected model.
+[Magpie](https://github.com/yetone/magpie) is a compatible local gateway that serves the providers, subscriptions, and routing groups configured in its app at `http://127.0.0.1:3425/v1`. Start Magpie, choose **Find local services**, pick **Magpie**, and choose one of its `provider/model` or `group/<name>` entries. Transly sends translation text to Magpie, and Magpie forwards it to the vendor that serves the selected model.
+
+Discovery confirms the service through Magpie's `GET /api/hello` and then fills the API key with `magpie-transly`. This value is not a secret: Magpie accepts any key from the same computer and, following its [integration guide](https://github.com/yetone/magpie/blob/main/docs/integrating.md), counts each call under the name after `magpie-`, so Magpie's Usage and Requests pages list these translations as `transly` rather than as the browser. Keep it unless you have listed Transly under Magpie's **Settings → Network and sharing → Web pages**; Magpie then requires one of its enabled gateway keys, which you enter in the API key field instead. A connection made before this change keeps working with an empty key; choose **Magpie** again to add the identification.
+
+When the API URL is Magpie's, Transly also sends `x-session-affinity: transly-<random id>` with each translation request. The id is new for every article translation and for every video's caption source, and contains no page address or title. Magpie keeps one conversation on the account that answered it while that account's prompt cache is worth reading, so the batches of one article or one video stay on that account instead of being spread across a routing group and paying to rebuild the cache. The same id groups the batches in Magpie's Requests log. Groups set to rotate still move each request to the next account, as configured in Magpie. Other providers never receive this header.
 
 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) is another compatible local gateway. Both are developed and operated independently from Transly. Follow each project's own installation, authentication, and service-management documentation.
 

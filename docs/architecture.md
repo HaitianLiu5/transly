@@ -8,7 +8,9 @@ Messaging.
 [WXT](https://wxt.dev/) generates the extension manifest and bundles the
 service worker, React popup, and React settings page. The popup and settings
 use [Base UI](https://base-ui.com/) primitives for accessible selects and
-comboboxes. The established article and subtitle runtimes remain ordered
+comboboxes. Both pages share the light and dark tokens in
+`src/ui/theme.css`; the in-page selection and subtitle panels mirror those values
+inside their shadow roots and follow the interface language setting. The established article and subtitle runtimes remain ordered
 classic content scripts copied into the WXT build unchanged.
 
 ```mermaid
@@ -37,7 +39,7 @@ The user supplies an API URL, model name, optional API key, and optional protoco
 
 Remote provider URLs must use HTTPS. Plain HTTP is accepted only for `localhost`, `127.0.0.1`, and `::1` so a separately operated local proxy remains possible.
 
-The settings page can discover compatible services on a fixed set of loopback ports. Discovery is started only by an explicit user action, does not enumerate the network, and sends no stored API key. Model names are then read from the selected provider's `/models` endpoint and shown in a searchable combobox; manual model entry remains a fallback.
+The settings page can discover compatible services on a fixed set of loopback ports. Discovery is started only by an explicit user action, does not enumerate the network, and sends no stored API key. Model names are then read from the selected provider's `/models` endpoint and shown in a searchable combobox; manual model entry remains a fallback. On Magpie's port, discovery also reads Magpie's `/api/hello`; when it confirms Magpie, selecting it fills the public client key `magpie-transly`, which Magpie uses only to attribute calls to Transly. Requests to Magpie also carry a random per-run `x-session-affinity` id (one per article run or caption source) so Magpie's account affinity keeps a run's batches together; no other provider receives it.
 
 If no provider is configured, the service worker first asks the registered Lane
 Native Messaging host for a connection. Chrome and Lane both restrict this path

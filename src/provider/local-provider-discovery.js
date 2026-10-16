@@ -1,7 +1,8 @@
 import { extractModelIds } from "./openai-compatible.js";
+import { MAGPIE_API_URL, MAGPIE_CLIENT_KEY, isMagpieHello, magpieHelloUrl } from "./magpie.js";
 
 export const LOCAL_PROVIDER_CANDIDATES = Object.freeze([
-  { apiUrl: "http://127.0.0.1:3425/v1", hint: "Magpie" },
+  { apiUrl: MAGPIE_API_URL, hint: "Magpie", service: "magpie" },
   { apiUrl: "http://127.0.0.1:8317/v1", hint: "CLIProxyAPI" },
   { apiUrl: "http://127.0.0.1:1234/v1", hint: "LM Studio" },
   { apiUrl: "http://127.0.0.1:11434/v1", hint: "Ollama" },
@@ -23,13 +24,17 @@ export async function discoverLocalProviders(options = {}) {
 async function probeCandidate(candidate, { fetchImpl, timeoutMs }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const probe = (url) => fetchImpl(url, {
+    method: "GET",
+    headers: { accept: "application/json" },
+    cache: "no-store",
+    signal: controller.signal
+  });
   try {
-    const response = await fetchImpl(`${candidate.apiUrl.replace(/\/+$/, "")}/models`, {
-      method: "GET",
-      headers: { accept: "application/json" },
-      cache: "no-store",
-      signal: controller.signal
-    });
+    const [response, magpie] = await Promise.all([
+      probe(`${candidate.apiUrl.replace(/\/+$/, "")}/models`),
+      candidate.service === "magpie" ? confirmMagpie(probe, candidate.apiUrl) : false
+    ]);
     if (response.status === 401 || response.status === 403) {
       return {
         apiUrl: candidate.apiUrl,
@@ -46,11 +51,21 @@ async function probeCandidate(candidate, { fetchImpl, timeoutMs }) {
       apiUrl: candidate.apiUrl,
       hint: candidate.hint,
       authRequired: false,
-      models
+      models,
+      ...(magpie ? { clientKey: MAGPIE_CLIENT_KEY } : {})
     };
   } catch {
     return null;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+async function confirmMagpie(probe, apiUrl) {
+  try {
+    const response = await probe(magpieHelloUrl(apiUrl));
+    return response.ok && isMagpieHello(await response.json().catch(() => null));
+  } catch {
+    return false;
   }
 }

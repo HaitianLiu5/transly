@@ -409,6 +409,7 @@ test("long subtitles translate around the playhead and remain available after se
   await expect(videoPage.locator("#transly-caption-window")).toContainText("长视频第 11 句。", { timeout: 500 });
   await videoPage.waitForTimeout(200);
   expect(provider.translationRequests()).toHaveLength(requestsBeforeCachedSeek);
+  expect(provider.translationRequests().every((request) => request.session === undefined)).toBe(true);
 });
 
 test("Transly loads a disabled native subtitle track and restores it when turned off", async ({
@@ -428,6 +429,31 @@ test("Transly loads a disabled native subtitle track and restores it when turned
   await expect.poll(() => videoPage.locator("video").evaluate((video) => video.textTracks[0]?.mode)).toBe("disabled");
 });
 
+test("a new reader goes from the popup straight to setting up a translation service", async ({
+  extension,
+  provider
+}) => {
+  const { tabId } = await openArticle(extension, provider);
+  const popup = await openPopup(extension, tabId);
+
+  await expect(popup.locator("#providerState")).toHaveText("Setup required");
+  await expect(popup.locator("#providerValue")).toHaveCount(0);
+  await expect(popup.locator("#status")).toBeHidden();
+  const setup = popup.locator("#translateArticle");
+  await expect(setup).toHaveText("Set up translation");
+  await expect(setup).toBeEnabled();
+
+  const optionsPages = () => extension.context.pages()
+    .filter((page) => page.url().startsWith(`chrome-extension://${extension.extensionId}/options.html`));
+  for (const page of optionsPages()) await page.close();
+  await setup.click();
+  await expect.poll(() => optionsPages().length).toBe(1);
+  const [options] = optionsPages();
+  await expect(options.locator("html")).toHaveAttribute("data-transly-options-ready", "true");
+  await expect(options.locator("#quickSetupHeading")).toHaveText("Translation service");
+  expect(provider.translationRequests()).toHaveLength(0);
+});
+
 test("a reader configures a provider, translates progressively, changes reading mode, and clears", async ({
   extension,
   provider
@@ -442,6 +468,7 @@ test("a reader configures a provider, translates progressively, changes reading 
   await expect(popup.locator("#providerState")).toHaveText("Ready");
   await expect(popup.locator("#providerValue")).toHaveText("OpenAI");
   await expect(popup.locator("#modelValue")).toHaveText("gpt-e2e-primary");
+  await expect(popup.locator("#translateSelection")).toHaveCount(0);
   await popup.locator("#targetLanguage").click();
   await expect(popup.locator(".language-option")).toHaveCount(9);
   const languageLayout = await popup.locator(".language-option").evaluateAll((items) => items.map((item) => {
@@ -676,6 +703,69 @@ test("a reader hovers the selection dot and reuses its cached translation from t
   expect(provider.translationRequests()).toHaveLength(1);
 });
 
+test("a failed selection translation explains the problem and recovers with Try again", async ({
+  extension,
+  provider
+}) => {
+  await configureProvider(extension, provider);
+  const { page: article } = await openArticle(extension, provider);
+  const source = article.locator("article > p").first();
+  await source.scrollIntoViewIfNeeded();
+  await article.mouse.move(2, 2);
+  provider.state.failNextTranslation = true;
+  await source.evaluate((element) => {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+  });
+
+  const selectionUi = article.locator("[data-transly-selection-ui]");
+  await selectionUi.locator(".trigger").hover();
+  const panel = selectionUi.locator(".panel");
+  await expect(panel).toHaveAttribute("data-state", "error");
+  await expect(selectionUi.locator("[data-role='body']")).toHaveText(
+    "The translation service ran into a problem. Try again in a moment."
+  );
+  await expect(selectionUi.locator("[data-role='detail']")).toContainText("Planned provider outage");
+  await expect(selectionUi.locator("[data-role='copy']")).toBeHidden();
+
+  await selectionUi.locator("[data-role='retry']").click();
+  await expect(panel).toHaveAttribute("data-state", "result");
+  await expect(selectionUi.locator("[data-role='body']")).toHaveText("上下文让翻译更准确");
+  await expect(selectionUi.locator("[data-role='retry']")).toBeHidden();
+  expect(provider.translationRequests()).toHaveLength(2);
+});
+
+test("in-page subtitle controls follow the interface language chosen in settings", async ({
+  extension,
+  provider
+}) => {
+  await configureProvider(extension, provider);
+  const options = await extension.context.newPage();
+  await options.goto(`chrome-extension://${extension.extensionId}/options.html`);
+  await expect(options.locator("html")).toHaveAttribute("data-transly-options-ready", "true");
+  await options.locator("#settingsUiLanguage").click();
+  await options.locator(".settings-interface-option[data-value='zh-CN']").click();
+  await expect(options.locator("#quickSetupHeading")).toHaveText("翻译服务");
+
+  const { page: videoPage } = await openTriggeredSubtitlePage(extension, provider);
+  await videoPage.evaluate(() => window.setSubtitleTime(1));
+  await videoPage.locator(".html5-video-player").evaluate((node) => node.classList.remove("ytp-autohide"));
+  const controls = videoPage.locator("#transly-subtitle-controls");
+  await expect(controls.locator(".menu-trigger")).toHaveAttribute("aria-label", "Transly 字幕设置");
+  await controls.locator(".menu-trigger").click();
+  await expect(controls.locator(".enable-label")).toHaveText("翻译字幕");
+  await expect(controls.locator('[data-mode="bilingual"]')).toHaveText("双语");
+
+  await options.locator("#settingsUiLanguage").click();
+  await options.locator(".settings-interface-option[data-value='en']").click();
+  await expect(controls.locator(".enable-label")).toHaveText("Translated subtitles");
+  await expect(controls.locator('[data-mode="bilingual"]')).toHaveText("Both");
+});
+
 test("a reader configures the page shortcut independently and can turn selection translation off", async ({
   extension,
   provider
@@ -686,6 +776,12 @@ test("a reader configures the page shortcut independently and can turn selection
   await expect(options.locator("html")).toHaveAttribute("data-transly-options-ready", "true");
   const selectionTranslationSwitch = options.getByRole("switch", { name: "Selection translation" });
   await expect(selectionTranslationSwitch).toHaveAttribute("aria-checked", "true");
+  const thumbCentering = () => options.locator(".settings-switch").evaluateAll((tracks) => tracks.map((track) => {
+    const outer = track.getBoundingClientRect();
+    const thumb = track.querySelector(".settings-switch-thumb").getBoundingClientRect();
+    return Math.round((thumb.top - outer.top) - (outer.bottom - thumb.bottom));
+  }));
+  await expect.poll(thumbCentering).toEqual([0, 0]);
   const shortcutStyle = options.locator("#selectionShortcutStyle");
   await expect(shortcutStyle).toContainText("Small dot");
   await shortcutStyle.click();
@@ -717,6 +813,7 @@ test("a reader configures the page shortcut independently and can turn selection
   await article.mouse.move(2, 2);
   await selectionIconSwitch.click();
   await expect(selectionIconSwitch).toHaveAttribute("aria-checked", "false");
+  await expect.poll(thumbCentering).toEqual([0, 0]);
   await expect(selectionTrigger).toBeHidden();
   await source.evaluate((element) => {
     const selection = window.getSelection();
@@ -822,11 +919,11 @@ test("interface language stays in sync between the popup and settings", async ({
   await expect(popup.locator("#providerState")).toHaveText("可用");
   await expect(popup.locator("#translateArticle")).toHaveText("翻译");
   await expect(options.locator("#settingsUiLanguage")).toContainText("简体中文");
-  await expect(options.locator("#quickSetupHeading")).toHaveText("快速设置");
+  await expect(options.locator("#quickSetupHeading")).toHaveText("翻译服务");
 
   await options.locator("#settingsUiLanguage").click();
   await options.locator(".settings-interface-option[data-value='en']").click();
-  await expect(options.locator("#quickSetupHeading")).toHaveText("Quick setup");
+  await expect(options.locator("#quickSetupHeading")).toHaveText("Translation service");
   await expect(popup.locator(".section-label")).toHaveText("Translate to");
   await expect(popup.locator("#providerState")).toHaveText("Ready");
 });
@@ -842,7 +939,7 @@ test("the settings page automatically restores the provider model catalog", asyn
   await options.goto(`chrome-extension://${extension.extensionId}/options.html`);
   await expect(options.locator("html")).toHaveAttribute("data-transly-options-ready", "true");
   await expect(options.locator("#modelHint")).toHaveText(
-    `${provider.models.length} available models. Choose one from the list.`
+    `${provider.models.length} models available.`
   );
 
   await options.locator("#modelTrigger").click();
@@ -850,17 +947,24 @@ test("the settings page automatically restores the provider model catalog", asyn
   expect(provider.state.requests.filter((request) => request.kind === "models")).toHaveLength(requestsBeforeOpen + 1);
 });
 
-test("a reader finds a running Magpie gateway and translates through it without a key", async ({
-  extension
-}) => {
-  // Serve Magpie's fixed port from an ephemeral mock so a running Magpie is never contacted.
-  const magpie = await startMockProvider({ apiKey: "" });
+// Serve Magpie's fixed port from an ephemeral mock so a running Magpie is never contacted.
+async function startMockMagpie(extension) {
+  const magpie = await startMockProvider({ apiKey: "", serviceName: "magpie" });
   const magpieOrigin = new URL(magpie.apiUrl).origin;
   await extension.context.route("http://127.0.0.1:3425/**", async (route) => {
     const url = new URL(route.request().url());
     const response = await route.fetch({ url: `${magpieOrigin}${url.pathname}${url.search}` });
     await route.fulfill({ response });
   });
+  return magpie;
+}
+
+const MAGPIE_SESSION = /^transly-[0-9a-f-]{36}$/;
+
+test("a reader finds a running Magpie gateway and translates through it as Transly", async ({
+  extension
+}) => {
+  const magpie = await startMockMagpie(extension);
   try {
     const options = await extension.context.newPage();
     await options.goto(`chrome-extension://${extension.extensionId}/options.html`);
@@ -869,13 +973,16 @@ test("a reader finds a running Magpie gateway and translates through it without 
     const result = options.locator(".local-result", { hasText: "Magpie" });
     await expect(result).toContainText("http://127.0.0.1:3425/v1");
     await expect(result).toContainText(`${magpie.models.length} models`);
-    expect(magpie.state.requests.filter((request) => request.kind === "models")).toEqual([
+    expect(magpie.state.requests).toHaveLength(2);
+    expect(magpie.state.requests).toEqual(expect.arrayContaining([
+      { kind: "hello", authorization: undefined },
       { kind: "models", authorization: undefined }
-    ]);
+    ]));
 
     await result.click();
     await expect(options.locator("#apiUrl")).toHaveValue("http://127.0.0.1:3425/v1");
-    await expect(options.locator("#apiKey")).toHaveValue("");
+    await expect(options.locator("#apiKey")).toHaveValue("magpie-transly");
+    await expect(options.locator("#providerStatus")).toContainText("as transly");
     await options.locator("#modelTrigger").click();
     await options.locator(`.model-option[data-value="${magpie.models[0]}"]`).click();
     await options.locator("#connectProvider").click();
@@ -885,12 +992,45 @@ test("a reader finds a running Magpie gateway and translates through it without 
     const { page: article, tabId } = await openArticle(extension, magpie);
     const popup = await openPopup(extension, tabId);
     await expect(popup.locator("#providerState")).toHaveText("Ready");
+    await expect(popup.locator("#providerValue")).toHaveText("Magpie");
     await popup.locator("#translateArticle").click();
     await expect(article.locator("html")).toHaveAttribute("data-transly-article-status", "translated");
     expect(magpie.translationRequests().length).toBeGreaterThan(0);
-    expect(magpie.translationRequests().every((request) => (
-      request.model === magpie.models[0] && request.authorization === undefined
+    expect(magpie.translationRequests().every((request) => request.model === magpie.models[0])).toBe(true);
+    expect(magpie.state.requests.slice(2).every((request) => (
+      request.authorization === "Bearer magpie-transly"
     ))).toBe(true);
+    const runSessions = magpie.state.requests
+      .filter((request) => request.kind === "translation" || request.kind === "audit")
+      .map((request) => request.session);
+    expect([...new Set(runSessions)]).toEqual([expect.stringMatching(MAGPIE_SESSION)]);
+  } finally {
+    await magpie.close();
+  }
+});
+
+test("captions translated through Magpie stay in one session per video", async ({
+  extension
+}) => {
+  const magpie = await startMockMagpie(extension);
+  try {
+    await configureProvider(extension, {
+      ...magpie,
+      apiUrl: "http://127.0.0.1:3425/v1",
+      apiKey: "magpie-transly"
+    });
+    const { page: videoPage } = await openLongSubtitlePage(extension, magpie);
+    await videoPage.evaluate(() => window.setSubtitleTime(600));
+    await expect.poll(() => videoPage.locator("video").evaluate((video) => video.currentTime)).toBe(600);
+    await videoPage.locator(".html5-video-player").evaluate((node) => node.classList.remove("ytp-autohide"));
+    await setPlayerSubtitles(videoPage, true);
+    await expect(videoPage.locator("#transly-caption-window")).toContainText("长视频第 11 句。");
+
+    await videoPage.evaluate(() => window.setSubtitleTime(60));
+    await expect(videoPage.locator("#transly-caption-window")).toContainText("长视频第 2 句。");
+    await expect.poll(() => magpie.translationRequests().length).toBe(4);
+    const captionSessions = magpie.translationRequests().map((request) => request.session);
+    expect([...new Set(captionSessions)]).toEqual([expect.stringMatching(MAGPIE_SESSION)]);
   } finally {
     await magpie.close();
   }
